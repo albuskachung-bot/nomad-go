@@ -2,9 +2,9 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null default 'user'
+  role text not null default 'member'
     constraint profiles_role_check
-    check (role in ('user', 'super_admin', 'editor')),
+    check (role in ('member', 'super_admin', 'editor', 'reviewer')),
   account_type text
     constraint profiles_account_type_check
     check (account_type in ('employer', 'nomad')),
@@ -163,15 +163,24 @@ alter table public.profiles drop constraint if exists profiles_account_type_chec
 alter table public.profiles add constraint profiles_account_type_check
   check (account_type in ('employer', 'nomad'));
 
+alter table public.profiles add column if not exists role text;
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles alter column role set default 'member';
+
 update public.profiles
 set account_type = 'nomad',
-    role = 'user'
+    role = 'member'
 where role = 'talent';
 
 update public.profiles
 set account_type = 'employer',
-    role = 'user'
+    role = 'member'
 where role = 'employer';
+
+update public.profiles
+set role = 'member'
+where role is null
+   or role = 'user';
 
 update public.profiles
 set role = 'super_admin'
@@ -181,10 +190,9 @@ update public.profiles
 set role = 'editor'
 where role = 'moderator';
 
-alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles alter column role set not null;
 alter table public.profiles add constraint profiles_role_check
-  check (role in ('user', 'super_admin', 'editor'));
-alter table public.profiles alter column role set default 'user';
+  check (role in ('member', 'super_admin', 'editor', 'reviewer'));
 
 alter table public.profiles add column if not exists is_banned boolean not null default false;
 alter table public.profiles alter column is_banned set default false;
@@ -435,7 +443,7 @@ begin
     avatar_url
   ) values (
     new.id,
-    'user',
+    'member',
     null,
     coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name'),
     new.raw_user_meta_data->>'avatar_url'
@@ -472,6 +480,19 @@ security definer
 set search_path = public
 as $$
   select coalesce(
+    public.current_profile_role() in ('super_admin', 'editor', 'reviewer'),
+    false
+  )
+$$;
+
+create or replace function public.can_manage_site_settings()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
     public.current_profile_role() in ('super_admin', 'editor'),
     false
   )
@@ -494,6 +515,13 @@ security definer
 set search_path = public
 as $$
 begin
+  if old.role = 'super_admin'
+    and new.role is distinct from 'super_admin'
+    and (select count(*) from public.profiles where role = 'super_admin') <= 1
+  then
+    raise exception 'Cannot remove the last super_admin';
+  end if;
+
   if new.role is distinct from old.role
     and coalesce(auth.role(), '') <> 'service_role'
     and auth.uid() is not null
@@ -592,8 +620,8 @@ begin
     raise exception 'Only super_admin can update admin roles';
   end if;
 
-  if target_role not in ('user', 'editor', 'super_admin') then
-    raise exception 'target_role must be user, editor, or super_admin';
+  if target_role not in ('member', 'reviewer', 'editor', 'super_admin') then
+    raise exception 'target_role must be member, reviewer, editor, or super_admin';
   end if;
 
   select id
@@ -870,8 +898,8 @@ begin
     create policy guides_admin_manage
       on public.guides for all
       to authenticated
-      using (public.is_admin_role())
-      with check (public.is_admin_role());
+      using (public.can_manage_site_settings())
+      with check (public.can_manage_site_settings());
   end if;
 
   if not exists (
@@ -907,8 +935,8 @@ begin
     create policy talents_admin_manage
       on public.talents for all
       to authenticated
-      using (public.is_admin_role())
-      with check (public.is_admin_role());
+      using (public.can_manage_site_settings())
+      with check (public.can_manage_site_settings());
   end if;
 
   if not exists (
@@ -932,8 +960,8 @@ begin
     create policy site_settings_admin_manage
       on public.site_settings for update
       to authenticated
-      using (public.is_admin_role())
-      with check (public.is_admin_role());
+      using (public.can_manage_site_settings())
+      with check (public.can_manage_site_settings());
   end if;
 
   if not exists (

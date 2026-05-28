@@ -8,6 +8,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import LoginModal from "@/components/LoginModal";
 import UserDropdown from "@/components/UserDropdown";
 import { supabase } from "@/lib/supabase/client";
+import type { ProfileRole } from "@/lib/types";
 
 const navItems = [
   { href: "/", label: "首頁" },
@@ -22,23 +23,49 @@ export default function Header() {
   const router = useRouter();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [profileRole, setProfileRole] = useState<ProfileRole | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase) {
       setIsAuthLoading(false);
+      setProfileRole(null);
       return;
     }
 
-    supabase.auth.getUser().then(({ data }) => {
+    const supabaseClient = supabase;
+
+    async function syncProfileRole(userId: string) {
+      const { data } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      setProfileRole((data?.role as ProfileRole | undefined) ?? null);
+    }
+
+    supabaseClient.auth.getUser().then(({ data }) => {
       setUser(data.user);
+      if (data.user) {
+        void syncProfileRole(data.user.id);
+      } else {
+        setProfileRole(null);
+      }
       setIsAuthLoading(false);
     });
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setUser(nextSession?.user ?? null);
+    } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+      const nextUser = nextSession?.user ?? null;
+
+      setUser(nextUser);
+      if (nextUser) {
+        void syncProfileRole(nextUser.id);
+      } else {
+        setProfileRole(null);
+      }
       setIsAuthLoading(false);
       if (nextSession) {
         setIsLoginOpen(false);
@@ -53,12 +80,14 @@ export default function Header() {
   async function handleSignOut() {
     if (!supabase) {
       setUser(null);
+      setProfileRole(null);
       router.push("/");
       return;
     }
 
     await supabase.auth.signOut();
     setUser(null);
+    setProfileRole(null);
     router.push("/");
     router.refresh();
   }
@@ -101,6 +130,7 @@ export default function Header() {
             {user ? (
               <UserDropdown
                 user={user}
+                profileRole={profileRole}
                 onSignOut={handleSignOut}
               />
             ) : (

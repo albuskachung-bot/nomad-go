@@ -16,10 +16,12 @@ import {
   User,
   type LucideIcon
 } from "lucide-react";
-import { isPrimaryAdminEmail } from "@/lib/admin-auth";
+import { isAdminRole } from "@/lib/admin-auth";
+import type { ProfileRole } from "@/lib/types";
 
 type UserDropdownProps = {
   user: SupabaseUser;
+  profileRole: ProfileRole | null;
   onSignOut: () => Promise<void> | void;
 };
 
@@ -71,6 +73,7 @@ const memberItems: MenuItem[] = [
 
 export default function UserDropdown({
   user,
+  profileRole,
   onSignOut
 }: UserDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -87,7 +90,7 @@ export default function UserDropdown({
 
   const avatarUrl = user.user_metadata.avatar_url as string | undefined;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
-  const showAdminEntry = isPrimaryAdminEmail(user.email);
+  const showAdminEntry = isAdminRole(profileRole);
 
   useEffect(() => {
     if (!isOpen) {

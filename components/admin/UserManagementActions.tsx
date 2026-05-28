@@ -15,7 +15,8 @@ const roleOptions: Array<{
   value: ProfileRole;
   label: string;
 }> = [
-  { value: "user", label: "User" },
+  { value: "member", label: "Member" },
+  { value: "reviewer", label: "Reviewer" },
   { value: "editor", label: "Editor" },
   { value: "super_admin", label: "Super Admin" }
 ];

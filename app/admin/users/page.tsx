@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Loader2, Shield, UserRound, XCircle } from "lucide-react";
+import { updateUserBanStatus, updateUserRole } from "@/app/admin/actions";
 import { supabase } from "@/lib/supabase/client";
 import type { Profile, ProfileRole } from "@/lib/types";
 
-type ManagedRole = "super_admin" | "editor" | "user";
+type ManagedRole = ProfileRole;
 
 type Toast = {
   type: "success" | "error";
@@ -18,13 +19,15 @@ const roleOptions: Array<{
 }> = [
   { value: "super_admin", label: "Super Admin" },
   { value: "editor", label: "Editor" },
-  { value: "user", label: "User" }
+  { value: "reviewer", label: "Reviewer" },
+  { value: "member", label: "Member" }
 ];
 
 const roleLabels: Record<string, string> = {
   super_admin: "Super Admin",
   editor: "Editor",
-  user: "User",
+  reviewer: "Reviewer",
+  member: "Member",
   talent: "Talent",
   employer: "Employer",
   admin: "Legacy Admin",
@@ -34,7 +37,8 @@ const roleLabels: Record<string, string> = {
 const roleBadgeStyles: Record<string, string> = {
   super_admin: "bg-indigo-50 text-indigo-700 ring-indigo-100",
   editor: "bg-blue-50 text-blue-700 ring-blue-100",
-  user: "bg-gray-100 text-gray-700 ring-gray-200",
+  reviewer: "bg-amber-50 text-amber-700 ring-amber-100",
+  member: "bg-gray-100 text-gray-700 ring-gray-200",
   talent: "bg-emerald-50 text-emerald-700 ring-emerald-100",
   employer: "bg-amber-50 text-amber-700 ring-amber-100",
   admin: "bg-purple-50 text-purple-700 ring-purple-100",
@@ -158,13 +162,13 @@ export default function AdminUsersPage() {
     try {
       setPendingUserId(userId);
 
-      const { error } = await supabase
-        .from("profiles")
-        .update({ role })
-        .eq("id", userId);
+      const formData = new FormData();
+      formData.set("user_id", userId);
+      formData.set("role", role);
+      const result = await updateUserRole(formData);
 
-      if (error) {
-        throw error;
+      if (!result.ok) {
+        throw new Error(result.message);
       }
 
       showToast({
@@ -197,24 +201,16 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (!supabase) {
-      showToast({
-        type: "error",
-        message: "尚未設定 Supabase 環境變數，無法更新停權狀態。"
-      });
-      return;
-    }
-
     try {
       setPendingUserId(profile.id);
 
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_banned: !profile.is_banned })
-        .eq("id", profile.id);
+      const formData = new FormData();
+      formData.set("user_id", profile.id);
+      formData.set("is_banned", String(!profile.is_banned));
+      const result = await updateUserBanStatus(formData);
 
-      if (error) {
-        throw error;
+      if (!result.ok) {
+        throw new Error(result.message);
       }
 
       showToast({
@@ -302,7 +298,7 @@ export default function AdminUsersPage() {
                 sortedProfiles.map((profile) => {
                   const displayName = getDisplayName(profile);
                   const isPending = pendingUserId === profile.id;
-                  const roleValue = isManagedRole(profile.role) ? profile.role : "user";
+                  const roleValue = isManagedRole(profile.role) ? profile.role : "member";
 
                   return (
                     <tr key={profile.id} className="transition hover:bg-gray-50/80">

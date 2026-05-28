@@ -48,9 +48,10 @@ export type Tool = {
 export type ContentStatus = "pending" | "published" | "rejected";
 
 export type ProfileRole =
-  | "user"
+  | "member"
   | "super_admin"
-  | "editor";
+  | "editor"
+  | "reviewer";
 
 export type AccountType = "employer" | "nomad";
 
@@ -259,7 +260,7 @@ export type Database = {
       set_admin_role_by_email: {
         Args: {
           target_email: string;
-          target_role: "user" | "editor" | "super_admin";
+          target_role: ProfileRole;
         };
         Returns: void;
       };

@@ -20,6 +20,7 @@ const baseItems = [
 ];
 
 const superAdminItems = [
+  { href: "/admin/team", label: "權限與團隊", icon: Users },
   { href: "/admin/users", label: "會員管控", icon: Users }
 ];
 

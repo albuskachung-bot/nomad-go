@@ -8,7 +8,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null default 'user',
+  role text not null default 'member',
   account_type text,
   full_name text,
   title text,
@@ -32,7 +32,7 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
-alter table public.profiles add column if not exists role text not null default 'user';
+alter table public.profiles add column if not exists role text not null default 'member';
 alter table public.profiles add column if not exists account_type text;
 alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists title text;
@@ -57,7 +57,7 @@ alter table public.profiles add column if not exists updated_at timestamptz not 
 
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
-  check (role in ('user', 'super_admin', 'editor'));
+  check (role in ('member', 'super_admin', 'editor', 'reviewer'));
 
 alter table public.profiles drop constraint if exists profiles_account_type_check;
 alter table public.profiles add constraint profiles_account_type_check
@@ -294,7 +294,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_profile_role() in ('super_admin', 'editor'), false)
+  select coalesce(public.current_profile_role() in ('super_admin', 'editor', 'reviewer'), false)
 $$;
 
 alter table public.profiles enable row level security;

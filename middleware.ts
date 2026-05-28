@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isPrimaryAdminEmail } from "@/lib/admin-auth";
+import { adminRoles, type AdminRole } from "@/lib/admin-auth";
 import type { Database } from "@/lib/types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,6 +8,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type ProfileGate = {
   is_banned: boolean;
+  role: string | null;
 };
 
 function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string) {
@@ -56,12 +57,6 @@ function failOpenForProfileRead(
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-
-  // TEMPORARY DEBUG BYPASS: remove this block before exposing admin in production.
-  if (pathname.startsWith("/admin")) {
-    console.log("🚧 [Debug] 允許無條件進入 Admin 路由", pathname);
-    return NextResponse.next();
-  }
 
   let supabaseResponse = NextResponse.next({
     request
@@ -129,30 +124,12 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (isProtectedAdminRoute(pathname)) {
-    const {
-      data: { user: verifiedUser },
-      error: userError
-    } = await supabase.auth.getUser();
-
-    if (userError || !verifiedUser) {
-      console.error("[middleware] Failed to verify admin user.", userError);
-      return redirectWithCookies(request, supabaseResponse, "/admin/login");
-    }
-
-    if (isPrimaryAdminEmail(verifiedUser.email)) {
-      return supabaseResponse;
-    }
-
-    return redirectWithCookies(request, supabaseResponse, "/");
-  }
-
   let profile: ProfileGate | null = null;
 
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("is_banned")
+      .select("is_banned, role")
       .eq("id", session.user.id)
       .maybeSingle();
 
@@ -166,11 +143,24 @@ export async function middleware(request: NextRequest) {
 
     profile = data;
   } catch (error) {
+    if (isProtectedAdminRoute(pathname)) {
+      console.error("[middleware] Failed to read admin profile. Fail-closed for admin route.", error);
+      return redirectWithCookies(request, supabaseResponse, "/");
+    }
+
     return failOpenForProfileRead(supabaseResponse, error);
   }
 
   if (profile.is_banned && !isAccountBannedRoute(pathname) && !isAuthCallbackRoute(pathname)) {
     return redirectWithCookies(request, supabaseResponse, "/account-banned");
+  }
+
+  if (isProtectedAdminRoute(pathname)) {
+    if (adminRoles.includes(profile.role as AdminRole)) {
+      return supabaseResponse;
+    }
+
+    return redirectWithCookies(request, supabaseResponse, "/");
   }
 
   return supabaseResponse;

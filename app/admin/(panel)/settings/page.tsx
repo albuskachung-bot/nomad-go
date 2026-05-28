@@ -1,11 +1,12 @@
 import { Image as ImageIcon, ShieldAlert } from "lucide-react";
 import SiteSettingsForm from "@/components/admin/SiteSettingsForm";
+import { canManageSiteSettings } from "@/lib/admin-auth";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { mockSiteSettings } from "@/lib/data";
 
 export default async function AdminSettingsPage() {
-  const { supabase, isAdmin } = await getCurrentAdminContext();
-  const canManageSiteSettings = isAdmin;
+  const { supabase, profile } = await getCurrentAdminContext();
+  const canManageSettings = canManageSiteSettings(profile?.role);
   const settings = supabase
     ? await supabase
         .from("site_settings")
@@ -23,7 +24,7 @@ export default async function AdminSettingsPage() {
         )
     : mockSiteSettings;
 
-  if (!canManageSiteSettings) {
+  if (!canManageSettings) {
     return (
       <div className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100">
         <div className="flex items-center gap-3">
@@ -40,7 +41,7 @@ export default async function AdminSettingsPage() {
           </div>
         </div>
         <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-500">
-          此頁面僅限 Super Admin 或 Editor 修改。Moderator 可管理審核流程，但不能變更首頁內容與品牌素材。
+          此頁面僅限 Super Admin 或 Editor 修改。Reviewer 可管理審核流程，但不能變更首頁內容與品牌素材。
         </p>
       </div>
     );

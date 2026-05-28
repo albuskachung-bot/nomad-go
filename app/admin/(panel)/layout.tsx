@@ -1,8 +1,20 @@
-export default function AdminPanelLayout({
+import { redirect } from "next/navigation";
+import { getCurrentAdminContext } from "@/lib/admin";
+
+export default async function AdminPanelLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // TEMPORARY DEBUG BYPASS: child admin pages must remain renderable while routing is diagnosed.
+  const { user, isAdmin } = await getCurrentAdminContext();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  if (!isAdmin) {
+    redirect("/");
+  }
+
   return children;
 }

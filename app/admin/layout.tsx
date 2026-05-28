@@ -7,7 +7,8 @@ import {
   Building2,
   CreditCard,
   LayoutDashboard,
-  Settings
+  Settings,
+  UserCog
 } from "lucide-react";
 
 const navItems = [
@@ -34,6 +35,12 @@ const navItems = [
     label: "財務與訂閱",
     helper: "Billing & Finance",
     icon: CreditCard
+  },
+  {
+    href: "/admin/team",
+    label: "權限與團隊",
+    helper: "Team & Roles",
+    icon: UserCog
   },
   {
     href: "/admin/settings",
@@ -144,13 +151,6 @@ export default function AdminLayout({
       </header>
 
       <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:pl-80 lg:pr-8 lg:pt-8">
-        <div
-          role="alert"
-          className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
-        >
-          Debug Bypass Active: `/admin` routes are temporarily public while access routing is being
-          diagnosed.
-        </div>
         {children}
       </main>
     </div>

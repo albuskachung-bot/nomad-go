@@ -253,7 +253,7 @@ export const mockSiteSettings: SiteSettings = {
 export const mockTalentProfiles: Profile[] = [
   {
     id: "profile-001",
-    role: "user",
+    role: "member",
     account_type: "nomad",
     full_name: "Ivy Chen",
     title: "資深產品設計師 (B2B SaaS)",
@@ -280,7 +280,7 @@ export const mockTalentProfiles: Profile[] = [
   },
   {
     id: "profile-002",
-    role: "user",
+    role: "member",
     account_type: "nomad",
     full_name: "Marcus Lin",
     title: "全端工程師 / Next.js 架構師",
@@ -307,7 +307,7 @@ export const mockTalentProfiles: Profile[] = [
   },
   {
     id: "profile-003",
-    role: "user",
+    role: "member",
     account_type: "nomad",
     full_name: "Nora Wang",
     title: "內容策略顧問 / SEO Growth",
