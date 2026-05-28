@@ -16,7 +16,7 @@ import {
   User,
   type LucideIcon
 } from "lucide-react";
-import { isAdminRole } from "@/lib/admin-auth";
+import { isAdminRole, isPrimaryAdminEmail } from "@/lib/admin-auth";
 import type { ProfileRole } from "@/lib/types";
 
 type UserDropdownProps = {
@@ -90,7 +90,7 @@ export default function UserDropdown({
 
   const avatarUrl = user.user_metadata.avatar_url as string | undefined;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
-  const showAdminEntry = isAdminRole(profileRole);
+  const showAdminEntry = isPrimaryAdminEmail(user.email) || isAdminRole(profileRole);
 
   useEffect(() => {
     if (!isOpen) {

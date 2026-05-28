@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { adminRoles, type AdminRole } from "@/lib/admin-auth";
+import { isPrimaryAdminEmail } from "@/lib/admin-auth";
 import type { Database } from "@/lib/types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,7 +8,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type ProfileGate = {
   is_banned: boolean;
-  role: string | null;
 };
 
 function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string) {
@@ -124,12 +123,34 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
+  if (isProtectedAdminRoute(pathname)) {
+    try {
+      const {
+        data: { user },
+        error: userError
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (isPrimaryAdminEmail(user?.email)) {
+        return supabaseResponse;
+      }
+
+      return redirectWithCookies(request, supabaseResponse, "/");
+    } catch (error) {
+      console.error("[middleware] Failed to verify admin email. Fail-closed for admin route.", error);
+      return redirectWithCookies(request, supabaseResponse, "/admin/login");
+    }
+  }
+
   let profile: ProfileGate | null = null;
 
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("is_banned, role")
+      .select("is_banned")
       .eq("id", session.user.id)
       .maybeSingle();
 
@@ -143,24 +164,11 @@ export async function middleware(request: NextRequest) {
 
     profile = data;
   } catch (error) {
-    if (isProtectedAdminRoute(pathname)) {
-      console.error("[middleware] Failed to read admin profile. Fail-closed for admin route.", error);
-      return redirectWithCookies(request, supabaseResponse, "/");
-    }
-
     return failOpenForProfileRead(supabaseResponse, error);
   }
 
   if (profile.is_banned && !isAccountBannedRoute(pathname) && !isAuthCallbackRoute(pathname)) {
     return redirectWithCookies(request, supabaseResponse, "/account-banned");
-  }
-
-  if (isProtectedAdminRoute(pathname)) {
-    if (adminRoles.includes(profile.role as AdminRole)) {
-      return supabaseResponse;
-    }
-
-    return redirectWithCookies(request, supabaseResponse, "/");
   }
 
   return supabaseResponse;
