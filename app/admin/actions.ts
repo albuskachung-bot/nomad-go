@@ -10,7 +10,6 @@ type UserManagementRole = "user" | "editor" | "super_admin";
 
 const curationTables: CurationTable[] = ["jobs", "guides", "talents", "profiles"];
 const statuses: ContentStatus[] = ["pending", "published", "rejected"];
-const siteSettingsRoles = ["super_admin", "editor"];
 const userManagementRoles: UserManagementRole[] = ["user", "editor", "super_admin"];
 
 function isUserManagementRole(role: string | undefined): role is UserManagementRole {
@@ -20,7 +19,7 @@ function isUserManagementRole(role: string | undefined): role is UserManagementR
 async function requireAdmin() {
   const context = await getCurrentAdminContext();
 
-  if (!context.supabase || !context.isAdmin || context.profile?.is_banned) {
+  if (!context.supabase || !context.isAdmin) {
     throw new Error("Unauthorized admin action");
   }
 
@@ -114,15 +113,7 @@ export async function updateAdminContentItem(formData: FormData) {
 }
 
 export async function updateSiteSettings(formData: FormData) {
-  const context = await requireAdmin();
-  const { supabase, profile } = context;
-
-  if (!siteSettingsRoles.includes(profile?.role ?? "")) {
-    return {
-      ok: false,
-      message: "只有 Super Admin 或 Editor 可以修改全站設定。"
-    };
-  }
+  const { supabase } = await requireAdmin();
 
   const heroTitle = formData.get("hero_title")?.toString().trim();
   const heroSubtitle = formData.get("hero_subtitle")?.toString().trim();

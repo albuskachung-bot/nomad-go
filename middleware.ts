@@ -1,14 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isPrimaryAdminEmail } from "@/lib/admin-auth";
 import type { Database } from "@/lib/types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const adminRoles = ["super_admin", "editor"] as const;
 
 type ProfileGate = {
   is_banned: boolean;
-  role: string | null;
 };
 
 function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string) {
@@ -47,23 +46,22 @@ function isProtectedAdminRoute(pathname: string) {
 }
 
 function failOpenForProfileRead(
-  request: NextRequest,
   response: NextResponse,
   error: unknown
 ) {
   console.error("[middleware] Failed to read latest profile. Fail-open for dashboard/onboarding.", error);
-
-  const pathname = request.nextUrl.pathname;
-
-  if (isProtectedAdminRoute(pathname)) {
-    return redirectWithCookies(request, response, "/");
-  }
 
   return response;
 }
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  // TEMPORARY DEBUG BYPASS: remove this block before exposing admin in production.
+  if (pathname.startsWith("/admin")) {
+    console.log("🚧 [Debug] 允許無條件進入 Admin 路由", pathname);
+    return NextResponse.next();
+  }
 
   let supabaseResponse = NextResponse.next({
     request
@@ -131,12 +129,30 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
+  if (isProtectedAdminRoute(pathname)) {
+    const {
+      data: { user: verifiedUser },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !verifiedUser) {
+      console.error("[middleware] Failed to verify admin user.", userError);
+      return redirectWithCookies(request, supabaseResponse, "/admin/login");
+    }
+
+    if (isPrimaryAdminEmail(verifiedUser.email)) {
+      return supabaseResponse;
+    }
+
+    return redirectWithCookies(request, supabaseResponse, "/");
+  }
+
   let profile: ProfileGate | null = null;
 
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("role,is_banned")
+      .select("is_banned")
       .eq("id", session.user.id)
       .maybeSingle();
 
@@ -150,21 +166,11 @@ export async function middleware(request: NextRequest) {
 
     profile = data;
   } catch (error) {
-    return failOpenForProfileRead(request, supabaseResponse, error);
+    return failOpenForProfileRead(supabaseResponse, error);
   }
-
-  const isAdmin = adminRoles.includes(profile.role as (typeof adminRoles)[number]);
 
   if (profile.is_banned && !isAccountBannedRoute(pathname) && !isAuthCallbackRoute(pathname)) {
     return redirectWithCookies(request, supabaseResponse, "/account-banned");
-  }
-
-  if (isProtectedAdminRoute(pathname)) {
-    if (!isAdmin) {
-      return redirectWithCookies(request, supabaseResponse, "/");
-    }
-
-    return supabaseResponse;
   }
 
   return supabaseResponse;

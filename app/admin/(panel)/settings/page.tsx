@@ -4,8 +4,8 @@ import { getCurrentAdminContext } from "@/lib/admin";
 import { mockSiteSettings } from "@/lib/data";
 
 export default async function AdminSettingsPage() {
-  const { supabase, profile } = await getCurrentAdminContext();
-  const canManageSiteSettings = profile?.role === "super_admin" || profile?.role === "editor";
+  const { supabase, isAdmin } = await getCurrentAdminContext();
+  const canManageSiteSettings = isAdmin;
   const settings = supabase
     ? await supabase
         .from("site_settings")

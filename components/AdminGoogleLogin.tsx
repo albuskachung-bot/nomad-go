@@ -17,18 +17,26 @@ export default function AdminGoogleLogin() {
     }
 
     setIsLoading(true);
-    const redirectTo = `${location.origin}/auth/callback?next=/admin`;
 
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback?next=/admin`;
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo
+        }
+      });
+
+      if (signInError) {
+        throw signInError;
       }
-    });
-
-    if (signInError) {
+    } catch (loginError) {
       setIsLoading(false);
-      setError(signInError.message);
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "登入啟動失敗，請稍後重新嘗試。"
+      );
     }
   }
 

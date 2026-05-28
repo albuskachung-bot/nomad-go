@@ -4,10 +4,11 @@ import type { Database } from "@/lib/types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const defaultRedirectPath = "/dashboard/nomad";
 
 function safeNextPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
+    return defaultRedirectPath;
   }
 
   return value;

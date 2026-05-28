@@ -8,7 +8,6 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import LoginModal from "@/components/LoginModal";
 import UserDropdown from "@/components/UserDropdown";
 import { supabase } from "@/lib/supabase/client";
-import type { ProfileRole } from "@/lib/types";
 
 const navItems = [
   { href: "/", label: "首頁" },
@@ -23,7 +22,6 @@ export default function Header() {
   const router = useRouter();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [profileRole, setProfileRole] = useState<ProfileRole | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -52,45 +50,15 @@ export default function Header() {
     };
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadProfile() {
-      setProfileRole(null);
-
-      if (!supabase || !user?.id) {
-        return;
-      }
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!ignore) {
-        setProfileRole(data?.role ?? null);
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      ignore = true;
-    };
-  }, [user?.id]);
-
   async function handleSignOut() {
     if (!supabase) {
       setUser(null);
-      setProfileRole(null);
       router.push("/");
       return;
     }
 
     await supabase.auth.signOut();
     setUser(null);
-    setProfileRole(null);
     router.push("/");
     router.refresh();
   }
@@ -133,7 +101,6 @@ export default function Header() {
             {user ? (
               <UserDropdown
                 user={user}
-                profileRole={profileRole}
                 onSignOut={handleSignOut}
               />
             ) : (

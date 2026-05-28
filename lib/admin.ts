@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isAdminRole, isGoogleUser } from "@/lib/admin-auth";
+import { isGoogleUser, isPrimaryAdminEmail } from "@/lib/admin-auth";
 import type { Profile } from "@/lib/types";
 
 export async function getCurrentAdminContext() {
@@ -38,7 +38,7 @@ export async function getCurrentAdminContext() {
     .maybeSingle();
 
   const typedProfile = profile as Profile | null;
-  const admin = isAdminRole(typedProfile?.role);
+  const admin = isPrimaryAdminEmail(user.email);
 
   return {
     supabase,
@@ -46,6 +46,6 @@ export async function getCurrentAdminContext() {
     profile: typedProfile,
     isGoogle: isGoogleUser(user),
     isAdmin: admin,
-    isSuperAdmin: typedProfile?.role === "super_admin"
+    isSuperAdmin: admin
   };
 }

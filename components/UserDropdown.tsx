@@ -16,12 +16,10 @@ import {
   User,
   type LucideIcon
 } from "lucide-react";
-import { isAdminRole } from "@/lib/admin-auth";
-import type { ProfileRole } from "@/lib/types";
+import { isPrimaryAdminEmail } from "@/lib/admin-auth";
 
 type UserDropdownProps = {
   user: SupabaseUser;
-  profileRole: ProfileRole | null;
   onSignOut: () => Promise<void> | void;
 };
 
@@ -73,7 +71,6 @@ const memberItems: MenuItem[] = [
 
 export default function UserDropdown({
   user,
-  profileRole,
   onSignOut
 }: UserDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -90,7 +87,7 @@ export default function UserDropdown({
 
   const avatarUrl = user.user_metadata.avatar_url as string | undefined;
   const initials = displayName.trim().slice(0, 1).toUpperCase();
-  const showAdminEntry = isAdminRole(profileRole);
+  const showAdminEntry = isPrimaryAdminEmail(user.email);
 
   useEffect(() => {
     if (!isOpen) {
@@ -177,13 +174,23 @@ export default function UserDropdown({
         {showAdminEntry ? (
           <>
             <div className="my-2 border-t border-gray-100" />
-            <DropdownLink
+            <Link
               href="/admin"
-              icon={Shield}
-              label="管理後台"
-              description="Admin Console"
-              onSelect={() => setIsOpen(false)}
-            />
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition hover:bg-gray-50"
+              role="menuitem"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <Shield className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium leading-5 text-gray-900">
+                  管理後台 (Admin Console)
+                </span>
+                <span className="block truncate text-xs text-gray-500">
+                  營運管理控制台
+                </span>
+              </span>
+            </Link>
           </>
         ) : null}
 
