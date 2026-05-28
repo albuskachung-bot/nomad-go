@@ -130,6 +130,12 @@ export type SiteSettings = {
   updated_at: string;
 };
 
+export type PlatformSetting = {
+  key_name: string;
+  key_value: string;
+  updated_at: string;
+};
+
 export type OrderStatus = "pending" | "paid" | "failed";
 
 export type Order = {
@@ -226,6 +232,16 @@ export type Database = {
           id?: number;
         };
         Update: Partial<SiteSettings>;
+        Relationships: [];
+      };
+      platform_settings: {
+        Row: PlatformSetting;
+        Insert: PlatformSetting | {
+          key_name: string;
+          key_value: string;
+          updated_at?: string;
+        };
+        Update: Partial<PlatformSetting>;
         Relationships: [];
       };
       orders: {

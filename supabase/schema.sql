@@ -125,6 +125,12 @@ create table if not exists public.site_settings (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.platform_settings (
+  key_name text primary key,
+  key_value text not null default '',
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -422,6 +428,12 @@ create trigger set_site_settings_updated_at
   for each row
   execute function public.set_updated_at();
 
+drop trigger if exists set_platform_settings_updated_at on public.platform_settings;
+create trigger set_platform_settings_updated_at
+  before update on public.platform_settings
+  for each row
+  execute function public.set_updated_at();
+
 drop trigger if exists set_companies_updated_at on public.companies;
 create trigger set_companies_updated_at
   before update on public.companies
@@ -495,6 +507,21 @@ as $$
   select coalesce(
     public.current_profile_role() in ('super_admin', 'editor'),
     false
+  )
+$$;
+
+create or replace function public.is_platform_super_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'super_admin'
   )
 $$;
 
@@ -649,6 +676,8 @@ alter table public.guides enable row level security;
 alter table public.tools enable row level security;
 alter table public.talents enable row level security;
 alter table public.site_settings enable row level security;
+alter table public.platform_settings enable row level security;
+alter table public.platform_settings force row level security;
 alter table public.orders enable row level security;
 alter table public.saved_items enable row level security;
 alter table public.applications enable row level security;
@@ -663,6 +692,32 @@ drop policy if exists companies_public_read on public.companies;
 drop policy if exists companies_employer_manage_own on public.companies;
 drop policy if exists applications_employer_read on public.applications;
 drop policy if exists site_settings_admin_manage on public.site_settings;
+drop policy if exists platform_settings_super_admin_select on public.platform_settings;
+drop policy if exists platform_settings_super_admin_insert on public.platform_settings;
+drop policy if exists platform_settings_super_admin_update on public.platform_settings;
+
+revoke all on public.platform_settings from anon;
+revoke all on public.platform_settings from authenticated;
+grant select, insert, update on public.platform_settings to authenticated;
+
+create policy platform_settings_super_admin_select
+  on public.platform_settings
+  for select
+  to authenticated
+  using (public.is_platform_super_admin());
+
+create policy platform_settings_super_admin_insert
+  on public.platform_settings
+  for insert
+  to authenticated
+  with check (public.is_platform_super_admin());
+
+create policy platform_settings_super_admin_update
+  on public.platform_settings
+  for update
+  to authenticated
+  using (public.is_platform_super_admin())
+  with check (public.is_platform_super_admin());
 
 do $$
 begin

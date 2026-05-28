@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { canManageSiteSettings, isAdminRole, type AdminRole } from "@/lib/admin-auth";
 import { getCurrentAdminContext } from "@/lib/admin";
+import { platformApiSettingKeys } from "@/lib/platform-settings";
 import type { ContentStatus, ProfileRole } from "@/lib/types";
 
 type CurationTable = "jobs" | "guides" | "talents" | "profiles";
@@ -212,6 +213,42 @@ export async function updateSiteSettings(formData: FormData) {
 
 export async function updateAdminRoleByEmail(formData: FormData) {
   return promoteTeamMemberByEmail(formData);
+}
+
+export async function updatePlatformApiSettings(formData: FormData): Promise<ActionResult> {
+  try {
+    const context = await requireSuperAdmin();
+
+    const rows = platformApiSettingKeys.map((key) => ({
+      key_name: key,
+      key_value: formData.get(key)?.toString().trim() ?? ""
+    }));
+
+    const { error } = await context.supabase
+      .from("platform_settings")
+      .upsert(rows, { onConflict: "key_name" });
+
+    if (error) {
+      return {
+        ok: false,
+        message: error.message
+      };
+    }
+
+    revalidatePath("/admin/billing");
+
+    return {
+      ok: true,
+      message: "API 設定已更新。"
+    };
+  } catch (error) {
+    console.error("[admin] Failed to update platform API settings.", error);
+
+    return {
+      ok: false,
+      message: "只有 Super Admin 可以更新金流與發票 API 設定。"
+    };
+  }
 }
 
 export async function updateUserRole(formData: FormData) {
