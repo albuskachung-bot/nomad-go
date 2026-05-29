@@ -4,9 +4,16 @@ export type Job = {
   company: string;
   location: string;
   job_type: string;
+  category: string | null;
+  experience_level: string | null;
+  employment_type: string | null;
   salary_range: string | null;
   tags: string[];
   description: string;
+  responsibilities: string | null;
+  requirements: string | null;
+  nice_to_haves: string | null;
+  benefits: string | null;
   apply_url: string | null;
   is_featured: boolean;
   employer_id: string | null;

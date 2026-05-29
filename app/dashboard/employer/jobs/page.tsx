@@ -31,6 +31,21 @@ const statusLabels = {
   rejected: "已退回"
 };
 
+const categoryOptions = ["軟體工程", "行銷企劃", "產品設計", "營運管理", "客戶服務", "其他"];
+const experienceLevelOptions = [
+  "實習 (Intern)",
+  "初階 (Junior)",
+  "中階 (Mid-Level)",
+  "資深 (Senior)",
+  "主管 (Lead/Manager)"
+];
+const employmentTypeOptions = [
+  "全職 (Full-time)",
+  "兼職 (Part-time)",
+  "約聘 (Contract)",
+  "接案 (Freelance)"
+];
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -184,6 +199,24 @@ export default function EmployerJobsPage() {
     }
 
     const formData = new FormData(form);
+    const category = formData.get("category")?.toString().trim() || "其他";
+    const experienceLevel =
+      formData.get("experience_level")?.toString().trim() || "中階 (Mid-Level)";
+    const employmentType =
+      formData.get("employment_type")?.toString().trim() || "全職 (Full-time)";
+    const responsibilities = formData.get("responsibilities")?.toString().trim() ?? "";
+    const requirements = formData.get("requirements")?.toString().trim() ?? "";
+    const niceToHaves = formData.get("nice_to_haves")?.toString().trim() ?? "";
+    const benefits = formData.get("benefits")?.toString().trim() ?? "";
+    const description = [
+      ["工作職責", responsibilities],
+      ["必備條件", requirements],
+      ["加分條件", niceToHaves],
+      ["公司福利", benefits]
+    ]
+      .filter(([, value]) => value.length > 0)
+      .map(([label, value]) => `${label}\n${value}`)
+      .join("\n\n");
     const tags = formData
       .get("tags")
       ?.toString()
@@ -220,11 +253,18 @@ export default function EmployerJobsPage() {
         title: formData.get("title")?.toString().trim() ?? "",
         company: formData.get("company")?.toString().trim() || currentCompany.name || "未命名公司",
         location: formData.get("location")?.toString().trim() ?? "",
-        job_type: formData.get("job_type")?.toString().trim() ?? "",
+        job_type: employmentType,
+        category,
+        experience_level: experienceLevel,
+        employment_type: employmentType,
         salary_range: formData.get("salary_range")?.toString().trim() || null,
         tags,
-        description: formData.get("description")?.toString().trim() ?? "",
-        apply_url: formData.get("apply_url")?.toString().trim() || null,
+        description,
+        responsibilities,
+        requirements,
+        nice_to_haves: niceToHaves,
+        benefits,
+        apply_url: null,
         is_featured: false,
         rejection_reason: null,
         status: "pending"
@@ -296,9 +336,26 @@ export default function EmployerJobsPage() {
           <Input name="title" label="職缺名稱" required />
           <Input name="company" label="公司名稱" defaultValue={workspace?.companyName ?? companyName} required />
           <Input name="location" label="地點 / 時區" placeholder="Remote / APAC" required />
-          <Input name="job_type" label="工作型態" placeholder="全職遠端" required />
           <Input name="salary_range" label="薪資區間" placeholder="USD 60k - 90k" />
-          <Input name="apply_url" label="應徵連結" placeholder="https://..." />
+
+          <SelectInput
+            name="category"
+            label="職務類別"
+            options={categoryOptions}
+            required
+          />
+          <SelectInput
+            name="experience_level"
+            label="資歷要求"
+            options={experienceLevelOptions}
+            required
+          />
+          <SelectInput
+            name="employment_type"
+            label="工作型態"
+            options={employmentTypeOptions}
+            required
+          />
           <label className="block md:col-span-2">
             <span className="text-sm font-medium text-gray-900">技能標籤</span>
             <input
@@ -307,15 +364,15 @@ export default function EmployerJobsPage() {
               className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
             />
           </label>
-          <label className="block md:col-span-2">
-            <span className="text-sm font-medium text-gray-900">職缺描述</span>
-            <textarea
-              name="description"
-              required
-              rows={5}
-              className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
-            />
-          </label>
+
+          <Textarea name="responsibilities" label="工作職責" required />
+          <Textarea name="requirements" label="必備條件" required />
+          <Textarea name="nice_to_haves" label="加分條件" />
+          <Textarea name="benefits" label="公司福利" />
+        </div>
+
+        <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">
+          此職缺會使用平台內建一鍵投遞系統收件，不再需要外部應徵連結。
         </div>
 
         <button
@@ -375,6 +432,58 @@ export default function EmployerJobsPage() {
         ) : null}
       </section>
     </div>
+  );
+}
+
+function Textarea({
+  name,
+  label,
+  required
+}: {
+  name: string;
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="block md:col-span-2">
+      <span className="text-sm font-medium text-gray-900">{label}</span>
+      <textarea
+        name={name}
+        required={required}
+        rows={4}
+        className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+      />
+    </label>
+  );
+}
+
+function SelectInput({
+  name,
+  label,
+  options,
+  required
+}: {
+  name: string;
+  label: string;
+  options: string[];
+  required?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-gray-900">{label}</span>
+      <select
+        name={name}
+        required={required}
+        defaultValue={options[0]}
+        className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

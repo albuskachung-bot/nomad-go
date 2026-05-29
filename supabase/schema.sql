@@ -38,9 +38,16 @@ create table if not exists public.jobs (
   company text not null,
   location text not null,
   job_type text not null,
+  category text default '其他',
+  experience_level text default '中階 (Mid-Level)',
+  employment_type text default '全職 (Full-time)',
   salary_range text,
   tags text[] not null default '{}',
   description text not null,
+  responsibilities text not null default '',
+  requirements text not null default '',
+  nice_to_haves text not null default '',
+  benefits text not null default '',
   apply_url text,
   is_featured boolean not null default false,
   employer_id uuid references public.profiles(id) on delete set null,
@@ -310,10 +317,29 @@ alter table public.applications add constraint applications_status_check
 
 alter table public.jobs add column if not exists status text not null default 'pending';
 alter table public.jobs add column if not exists employer_id uuid references public.profiles(id) on delete set null;
+alter table public.jobs add column if not exists category text default '其他';
+alter table public.jobs add column if not exists experience_level text default '中階 (Mid-Level)';
+alter table public.jobs add column if not exists employment_type text default '全職 (Full-time)';
+alter table public.jobs add column if not exists responsibilities text not null default '';
+alter table public.jobs add column if not exists requirements text not null default '';
+alter table public.jobs add column if not exists nice_to_haves text not null default '';
+alter table public.jobs add column if not exists benefits text not null default '';
 alter table public.jobs add column if not exists rejection_reason text;
 alter table public.jobs drop constraint if exists jobs_status_check;
 alter table public.jobs add constraint jobs_status_check
   check (status in ('pending', 'published', 'rejected'));
+
+alter table public.jobs drop constraint if exists jobs_category_check;
+alter table public.jobs add constraint jobs_category_check
+  check (category in ('軟體工程', '行銷企劃', '產品設計', '營運管理', '客戶服務', '其他'));
+
+alter table public.jobs drop constraint if exists jobs_experience_level_check;
+alter table public.jobs add constraint jobs_experience_level_check
+  check (experience_level in ('實習 (Intern)', '初階 (Junior)', '中階 (Mid-Level)', '資深 (Senior)', '主管 (Lead/Manager)'));
+
+alter table public.jobs drop constraint if exists jobs_employment_type_check;
+alter table public.jobs add constraint jobs_employment_type_check
+  check (employment_type in ('全職 (Full-time)', '兼職 (Part-time)', '約聘 (Contract)', '接案 (Freelance)'));
 
 create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),

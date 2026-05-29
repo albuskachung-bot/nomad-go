@@ -42,9 +42,16 @@ create table if not exists public.jobs (
   location text not null,
   work_type text,
   job_type text not null default '未指定',
+  category text default '其他',
+  experience_level text default '中階 (Mid-Level)',
+  employment_type text default '全職 (Full-time)',
   salary_range text,
   tags text[] not null default '{}',
   description text not null default '',
+  responsibilities text not null default '',
+  requirements text not null default '',
+  nice_to_haves text not null default '',
+  benefits text not null default '',
   apply_url text,
   is_featured boolean not null default false,
   status text not null default 'pending',
@@ -59,9 +66,16 @@ alter table public.jobs add column if not exists company text not null default '
 alter table public.jobs add column if not exists location text;
 alter table public.jobs add column if not exists work_type text;
 alter table public.jobs add column if not exists job_type text not null default '未指定';
+alter table public.jobs add column if not exists category text default '其他';
+alter table public.jobs add column if not exists experience_level text default '中階 (Mid-Level)';
+alter table public.jobs add column if not exists employment_type text default '全職 (Full-time)';
 alter table public.jobs add column if not exists salary_range text;
 alter table public.jobs add column if not exists tags text[] not null default '{}';
 alter table public.jobs add column if not exists description text not null default '';
+alter table public.jobs add column if not exists responsibilities text not null default '';
+alter table public.jobs add column if not exists requirements text not null default '';
+alter table public.jobs add column if not exists nice_to_haves text not null default '';
+alter table public.jobs add column if not exists benefits text not null default '';
 alter table public.jobs add column if not exists apply_url text;
 alter table public.jobs add column if not exists is_featured boolean not null default false;
 alter table public.jobs add column if not exists status text not null default 'pending';
@@ -74,8 +88,15 @@ set title = coalesce(title, '未命名職缺'),
     location = coalesce(location, 'Remote'),
     work_type = coalesce(work_type, job_type, '未指定'),
     job_type = coalesce(job_type, work_type, '未指定'),
+    category = coalesce(category, '其他'),
+    experience_level = coalesce(experience_level, '中階 (Mid-Level)'),
+    employment_type = coalesce(employment_type, job_type, '全職 (Full-time)'),
     tags = coalesce(tags, '{}'),
     description = coalesce(description, ''),
+    responsibilities = coalesce(responsibilities, description, ''),
+    requirements = coalesce(requirements, ''),
+    nice_to_haves = coalesce(nice_to_haves, ''),
+    benefits = coalesce(benefits, ''),
     status = coalesce(status, 'pending');
 
 alter table public.jobs alter column title set not null;
@@ -84,11 +105,27 @@ alter table public.jobs alter column location set not null;
 alter table public.jobs alter column job_type set not null;
 alter table public.jobs alter column tags set not null;
 alter table public.jobs alter column description set not null;
+alter table public.jobs alter column responsibilities set not null;
+alter table public.jobs alter column requirements set not null;
+alter table public.jobs alter column nice_to_haves set not null;
+alter table public.jobs alter column benefits set not null;
 alter table public.jobs alter column status set not null;
 
 alter table public.jobs drop constraint if exists jobs_status_check;
 alter table public.jobs add constraint jobs_status_check
   check (status in ('pending', 'published', 'rejected'));
+
+alter table public.jobs drop constraint if exists jobs_category_check;
+alter table public.jobs add constraint jobs_category_check
+  check (category in ('軟體工程', '行銷企劃', '產品設計', '營運管理', '客戶服務', '其他'));
+
+alter table public.jobs drop constraint if exists jobs_experience_level_check;
+alter table public.jobs add constraint jobs_experience_level_check
+  check (experience_level in ('實習 (Intern)', '初階 (Junior)', '中階 (Mid-Level)', '資深 (Senior)', '主管 (Lead/Manager)'));
+
+alter table public.jobs drop constraint if exists jobs_employment_type_check;
+alter table public.jobs add constraint jobs_employment_type_check
+  check (employment_type in ('全職 (Full-time)', '兼職 (Part-time)', '約聘 (Contract)', '接案 (Freelance)'));
 
 create table if not exists public.applications (
   id uuid primary key default gen_random_uuid(),
