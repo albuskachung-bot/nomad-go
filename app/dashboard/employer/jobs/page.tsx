@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Plus, XCircle } from "lucide-react";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
@@ -70,6 +71,7 @@ function isSchemaNotReadyError(error: unknown) {
 }
 
 export default function EmployerJobsPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [workspace, setWorkspace] = useState<WorkspaceState>(null);
@@ -171,6 +173,7 @@ export default function EmployerJobsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
 
     if (!supabase) {
       setToast({
@@ -180,7 +183,7 @@ export default function EmployerJobsPage() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const tags = formData
       .get("tags")
       ?.toString()
@@ -235,12 +238,13 @@ export default function EmployerJobsPage() {
         throw error;
       }
 
-      event.currentTarget.reset();
+      form.reset();
       setToast({
         type: "success",
         message: "職缺已送出審核。"
       });
       await fetchJobs();
+      router.refresh();
     } catch (error) {
       setToast({
         type: "error",

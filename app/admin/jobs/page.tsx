@@ -1,4 +1,5 @@
 import { CircleAlert, Database, Sparkles } from "lucide-react";
+import AdminJobReviewActions from "@/components/admin/AdminJobReviewActions";
 import { mockJobs } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ContentStatus, Job } from "@/lib/types";
@@ -118,7 +119,7 @@ export default async function AdminJobsInventoryPage() {
                 <th className="px-6 py-4">上架狀態</th>
                 <th className="px-6 py-4">審核狀態</th>
                 <th className="px-6 py-4">建立日期</th>
-                <th className="px-6 py-4 text-right">AI Action</th>
+                <th className="px-6 py-4 text-right">審核操作 (Actions)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -144,21 +145,18 @@ export default async function AdminJobsInventoryPage() {
                   <td className="px-6 py-5">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
                       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                      等待 AI 審核 (Pending AI Review)
+                      等待審核 (Pending Review)
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-5 text-slate-500">
                     {formatDate(job.created_at)}
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <button
-                      type="button"
-                      disabled
-                      title="AI 審核服務尚未串接"
-                      className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-500"
-                    >
-                      {"\u2728"} 啟動 AI 審核
-                    </button>
+                    <AdminJobReviewActions
+                      jobId={job.id}
+                      status={job.status}
+                      disabled={usingMockData}
+                    />
                   </td>
                 </tr>
               ))}
