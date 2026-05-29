@@ -217,8 +217,11 @@ export type Application = {
   status: ApplicationStatus;
   resume_url: string;
   cover_letter: string | null;
+  internal_notes: string | null;
   applied_at: string;
 };
+
+export type CompanyApplicationWithNotes = Application;
 
 export type Database = {
   public: {
@@ -346,8 +349,9 @@ export type Database = {
       };
       applications: {
         Row: Application;
-        Insert: Omit<Application, "id" | "applied_at"> & {
+        Insert: Omit<Application, "id" | "applied_at" | "internal_notes"> & {
           id?: string;
+          internal_notes?: string | null;
           applied_at?: string;
         };
         Update: Partial<Application>;
@@ -366,6 +370,12 @@ export type Database = {
           target_token: string;
         };
         Returns: CompanyInviteLookup[];
+      };
+      get_company_applications_with_notes: {
+        Args: {
+          target_company_id: string;
+        };
+        Returns: CompanyApplicationWithNotes[];
       };
       get_company_team_members: {
         Args: {

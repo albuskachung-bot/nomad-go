@@ -134,6 +134,7 @@ create table if not exists public.applications (
   status text not null default 'pending',
   resume_url text not null default 'legacy/no-resume.pdf',
   cover_letter text,
+  internal_notes text,
   applied_at timestamptz not null default now()
 );
 
@@ -142,6 +143,7 @@ alter table public.applications add column if not exists user_id uuid references
 alter table public.applications add column if not exists status text not null default 'pending';
 alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
 alter table public.applications add column if not exists cover_letter text;
+alter table public.applications add column if not exists internal_notes text;
 alter table public.applications add column if not exists applied_at timestamptz not null default now();
 
 update public.applications

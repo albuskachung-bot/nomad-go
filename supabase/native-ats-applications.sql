@@ -23,6 +23,7 @@ set public = false,
 
 alter table public.applications add column if not exists resume_url text;
 alter table public.applications add column if not exists cover_letter text;
+alter table public.applications add column if not exists internal_notes text;
 
 update public.applications
 set resume_url = 'legacy/no-resume.pdf'

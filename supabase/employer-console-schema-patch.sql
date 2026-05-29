@@ -196,6 +196,7 @@ alter table public.applications add column if not exists job_id uuid;
 alter table public.applications add column if not exists status text not null default 'pending';
 alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
 alter table public.applications add column if not exists cover_letter text;
+alter table public.applications add column if not exists internal_notes text;
 alter table public.applications add column if not exists applied_at timestamptz not null default now();
 
 update public.applications

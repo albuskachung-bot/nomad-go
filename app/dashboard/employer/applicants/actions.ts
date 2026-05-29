@@ -23,8 +23,13 @@ function isApplicationStatus(value: string | undefined): value is ApplicationSta
 }
 
 export async function updateEmployerApplicationStatus(formData: FormData): Promise<ActionResult> {
+  return updateEmployerApplicationReview(formData);
+}
+
+export async function updateEmployerApplicationReview(formData: FormData): Promise<ActionResult> {
   const applicationId = formData.get("application_id")?.toString();
   const nextStatus = formData.get("status")?.toString();
+  const internalNotes = formData.get("internal_notes")?.toString().trim() || null;
 
   if (!applicationId || !isApplicationStatus(nextStatus)) {
     return {
@@ -116,7 +121,10 @@ export async function updateEmployerApplicationStatus(formData: FormData): Promi
 
   const { error } = await supabase
     .from("applications")
-    .update({ status: nextStatus })
+    .update({
+      status: nextStatus,
+      internal_notes: internalNotes
+    })
     .eq("id", applicationId);
 
   if (error) {

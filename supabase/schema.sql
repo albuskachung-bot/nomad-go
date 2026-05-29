@@ -169,6 +169,7 @@ create table if not exists public.applications (
     check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired')),
   resume_url text not null default 'legacy/no-resume.pdf',
   cover_letter text,
+  internal_notes text,
   applied_at timestamptz not null default now(),
   unique (user_id, job_id)
 );
@@ -311,6 +312,7 @@ alter table public.saved_items add constraint saved_items_item_type_check
 alter table public.applications add column if not exists status text not null default 'pending';
 alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
 alter table public.applications add column if not exists cover_letter text;
+alter table public.applications add column if not exists internal_notes text;
 alter table public.applications drop constraint if exists applications_status_check;
 alter table public.applications add constraint applications_status_check
   check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired'));
