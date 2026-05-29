@@ -201,13 +201,15 @@ export type SavedItem = {
   created_at: string;
 };
 
-export type ApplicationStatus = "pending" | "reviewed" | "interview";
+export type ApplicationStatus = "pending" | "reviewed" | "interview" | "rejected" | "hired";
 
 export type Application = {
   id: string;
   user_id: string;
   job_id: string;
   status: ApplicationStatus;
+  resume_url: string;
+  cover_letter: string | null;
   applied_at: string;
 };
 

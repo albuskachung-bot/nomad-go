@@ -95,25 +95,31 @@ create table if not exists public.applications (
   job_id uuid not null references public.jobs(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   status text not null default 'pending',
+  resume_url text not null default 'legacy/no-resume.pdf',
+  cover_letter text,
   applied_at timestamptz not null default now()
 );
 
 alter table public.applications add column if not exists job_id uuid references public.jobs(id) on delete cascade;
 alter table public.applications add column if not exists user_id uuid references public.profiles(id) on delete cascade;
 alter table public.applications add column if not exists status text not null default 'pending';
+alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
+alter table public.applications add column if not exists cover_letter text;
 alter table public.applications add column if not exists applied_at timestamptz not null default now();
 
 update public.applications
-set status = coalesce(status, 'pending');
+set status = coalesce(status, 'pending'),
+    resume_url = coalesce(resume_url, 'legacy/no-resume.pdf');
 
 alter table public.applications alter column job_id set not null;
 alter table public.applications alter column user_id set not null;
 alter table public.applications alter column status set not null;
+alter table public.applications alter column resume_url set not null;
 alter table public.applications alter column applied_at set not null;
 
 alter table public.applications drop constraint if exists applications_status_check;
 alter table public.applications add constraint applications_status_check
-  check (status in ('pending', 'reviewed', 'interview'));
+  check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired'));
 
 create unique index if not exists applications_user_id_job_id_key
   on public.applications (user_id, job_id);
@@ -135,6 +141,9 @@ create index if not exists applications_job_id_status_idx
 
 create index if not exists applications_user_id_applied_at_idx
   on public.applications (user_id, applied_at desc);
+
+create index if not exists applications_resume_url_idx
+  on public.applications (resume_url);
 
 alter table public.companies enable row level security;
 alter table public.jobs enable row level security;

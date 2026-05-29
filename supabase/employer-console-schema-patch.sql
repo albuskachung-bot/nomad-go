@@ -157,17 +157,21 @@ create table if not exists public.applications (
 alter table public.applications add column if not exists user_id uuid;
 alter table public.applications add column if not exists job_id uuid;
 alter table public.applications add column if not exists status text not null default 'pending';
+alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
+alter table public.applications add column if not exists cover_letter text;
 alter table public.applications add column if not exists applied_at timestamptz not null default now();
 
 update public.applications
-set status = coalesce(status, 'pending');
+set status = coalesce(status, 'pending'),
+    resume_url = coalesce(resume_url, 'legacy/no-resume.pdf');
 
 alter table public.applications alter column status set not null;
+alter table public.applications alter column resume_url set not null;
 alter table public.applications alter column applied_at set not null;
 
 alter table public.applications drop constraint if exists applications_status_check;
 alter table public.applications add constraint applications_status_check
-  check (status in ('pending', 'reviewed', 'interview'));
+  check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired'));
 
 do $$
 begin
@@ -464,7 +468,7 @@ create policy applications_employer_update_status
     )
   )
   with check (
-    status in ('pending', 'reviewed', 'interview')
+    status in ('pending', 'reviewed', 'interview', 'rejected', 'hired')
     and exists (
       select 1
       from public.jobs

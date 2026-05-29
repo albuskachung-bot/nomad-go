@@ -511,7 +511,7 @@ create policy applications_company_member_update_status
     )
   )
   with check (
-    status in ('pending', 'reviewed', 'interview')
+    status in ('pending', 'reviewed', 'interview', 'rejected', 'hired')
     and exists (
       select 1
       from public.jobs

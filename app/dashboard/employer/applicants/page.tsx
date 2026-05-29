@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, UserRound, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Download, FileText, Loader2, UserRound, XCircle } from "lucide-react";
+import { updateEmployerApplicationStatus } from "@/app/dashboard/employer/applicants/actions";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
-import type { Application, Job, Profile } from "@/lib/types";
+import type { Application, ApplicationStatus, Job, Profile } from "@/lib/types";
 
 type ApplicantRow = {
   application: Application;
@@ -17,6 +19,42 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
+
+const applicationStatuses: Array<{
+  value: ApplicationStatus;
+  label: string;
+  className: string;
+}> = [
+  {
+    value: "pending",
+    label: "待審查",
+    className: "bg-slate-100 text-slate-700 ring-slate-200"
+  },
+  {
+    value: "reviewed",
+    label: "已審閱",
+    className: "bg-blue-50 text-blue-700 ring-blue-100"
+  },
+  {
+    value: "interview",
+    label: "面試中",
+    className: "bg-amber-50 text-amber-700 ring-amber-100"
+  },
+  {
+    value: "rejected",
+    label: "婉拒",
+    className: "bg-rose-50 text-rose-700 ring-rose-100"
+  },
+  {
+    value: "hired",
+    label: "錄取",
+    className: "bg-emerald-50 text-emerald-700 ring-emerald-100"
+  }
+];
+
+const statusMeta = Object.fromEntries(
+  applicationStatuses.map((status) => [status.value, status])
+) as Record<ApplicationStatus, (typeof applicationStatuses)[number]>;
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -58,8 +96,10 @@ function isMissingDataSourceError(error: unknown) {
 }
 
 export default function EmployerApplicantsPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<ApplicantRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
 
   const fetchApplicants = useCallback(async () => {
@@ -210,6 +250,66 @@ export default function EmployerApplicantsPage() {
 
   const groupedCount = useMemo(() => rows.length, [rows]);
 
+  async function handlePreviewResume(application: Application) {
+    if (!supabase) {
+      setToast({
+        type: "error",
+        message: "尚未設定 Supabase 環境變數，無法讀取履歷。"
+      });
+      return;
+    }
+
+    if (!application.resume_url || application.resume_url.startsWith("legacy/")) {
+      setToast({
+        type: "error",
+        message: "此應徵紀錄尚未提供平台履歷。"
+      });
+      return;
+    }
+
+    try {
+      setPendingKey(`resume:${application.id}`);
+      const { data, error } = await supabase.storage
+        .from("resumes")
+        .createSignedUrl(application.resume_url, 10 * 60);
+
+      if (error || !data?.signedUrl) {
+        throw error ?? new Error("無法產生履歷預覽連結。");
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: `履歷讀取失敗：${getErrorMessage(error)}`
+      });
+    } finally {
+      setPendingKey(null);
+    }
+  }
+
+  async function handleStatusChange(applicationId: string, nextStatus: ApplicationStatus) {
+    setPendingKey(`status:${applicationId}`);
+    setToast(null);
+
+    const formData = new FormData();
+    formData.set("application_id", applicationId);
+    formData.set("status", nextStatus);
+
+    const result = await updateEmployerApplicationStatus(formData);
+
+    setPendingKey(null);
+    setToast({
+      type: result.ok ? "success" : "error",
+      message: result.message
+    });
+
+    if (result.ok) {
+      await fetchApplicants();
+      router.refresh();
+    }
+  }
+
   return (
     <div className="space-y-6">
       {toast ? (
@@ -244,12 +344,13 @@ export default function EmployerApplicantsPage() {
 
       <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[1120px] text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-6 py-4">人才</th>
                 <th className="px-6 py-4">應徵職缺</th>
                 <th className="px-6 py-4">狀態</th>
+                <th className="px-6 py-4">自我推薦信</th>
                 <th className="px-6 py-4">投遞時間</th>
                 <th className="px-6 py-4 text-right">履歷</th>
               </tr>
@@ -277,20 +378,66 @@ export default function EmployerApplicantsPage() {
                     </td>
                     <td className="px-6 py-5 text-gray-600">{row.job.title}</td>
                     <td className="px-6 py-5">
-                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-                        {row.application.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                            statusMeta[row.application.status]?.className ?? statusMeta.pending.className
+                          }`}
+                        >
+                          {statusMeta[row.application.status]?.label ?? row.application.status}
+                        </span>
+                        <select
+                          value={row.application.status}
+                          disabled={pendingKey === `status:${row.application.id}`}
+                          onChange={(event) =>
+                            handleStatusChange(row.application.id, event.target.value as ApplicationStatus)
+                          }
+                          className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {applicationStatuses.map((status) => (
+                            <option key={status.value} value={status.value}>
+                              {status.label}
+                            </option>
+                          ))}
+                        </select>
+                        {pendingKey === `status:${row.application.id}` ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-slate-400" aria-hidden="true" />
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="max-w-xs px-6 py-5 text-gray-500">
+                      {row.application.cover_letter ? (
+                        <p className="max-h-16 overflow-hidden text-xs leading-5">{row.application.cover_letter}</p>
+                      ) : (
+                        <span className="text-xs text-gray-400">未填寫</span>
+                      )}
                     </td>
                     <td className="px-6 py-5 text-gray-500">
                       {new Intl.DateTimeFormat("zh-TW").format(new Date(row.application.applied_at))}
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <Link
-                        href={`/dashboard/employer/applicants/${row.application.user_id}`}
-                        className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-                      >
-                        查看履歷
-                      </Link>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewResume(row.application)}
+                          disabled={pendingKey === `resume:${row.application.id}`}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {pendingKey === `resume:${row.application.id}` ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                          )}
+                          預覽履歷
+                        </button>
+                        <Link
+                          href={`/dashboard/employer/applicants/${row.application.user_id}`}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-gray-200 transition hover:bg-gray-50"
+                        >
+                          <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                          人才檔案
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -324,6 +471,9 @@ function LoadingRows() {
           </td>
           <td className="px-6 py-5">
             <div className="h-6 w-20 rounded-full bg-gray-100" />
+          </td>
+          <td className="px-6 py-5">
+            <div className="h-4 w-40 rounded bg-gray-100" />
           </td>
           <td className="px-6 py-5">
             <div className="h-4 w-24 rounded bg-gray-100" />

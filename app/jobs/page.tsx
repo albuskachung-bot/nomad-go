@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  Briefcase,
   Building2,
   MapPin,
   Search,
@@ -182,22 +181,6 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
                     查看詳情
                     <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
-                  {job.apply_url ? (
-                    <a
-                      href={job.apply_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-600"
-                    >
-                      前往應徵
-                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                    </a>
-                  ) : (
-                    <div className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 text-sm font-semibold text-gray-500">
-                      <Briefcase className="h-4 w-4" aria-hidden="true" />
-                      尚未開放
-                    </div>
-                  )}
                 </div>
               </article>
             ))}

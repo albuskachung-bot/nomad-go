@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Building2, Globe2, MapPin } from "lucide-react";
+import { ArrowLeft, Building2, Globe2, MapPin } from "lucide-react";
+import JobApplyModal from "@/components/jobs/JobApplyModal";
 import { mockJobs } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Company, Job } from "@/lib/types";
@@ -26,7 +27,15 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
 
     job = (data as Job | null) ?? job;
 
-    if (job?.employer_id) {
+    if (job?.company_id) {
+      const { data: companyData } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("id", job.company_id)
+        .maybeSingle();
+
+      company = (companyData as Company | null) ?? null;
+    } else if (job?.employer_id) {
       const { data: companyData } = await supabase
         .from("companies")
         .select("*")
@@ -128,17 +137,11 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
             ) : null}
           </div>
 
-          {job.apply_url ? (
-            <a
-              href={job.apply_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              前往應徵
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </a>
-          ) : null}
+          <JobApplyModal
+            jobId={job.id}
+            jobTitle={job.title}
+            companyName={company?.name ?? job.company}
+          />
         </aside>
       </div>
     </main>

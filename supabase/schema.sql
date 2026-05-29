@@ -159,7 +159,9 @@ create table if not exists public.applications (
   job_id uuid not null references public.jobs(id) on delete cascade,
   status text not null default 'pending'
     constraint applications_status_check
-    check (status in ('pending', 'reviewed', 'interview')),
+    check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired')),
+  resume_url text not null default 'legacy/no-resume.pdf',
+  cover_letter text,
   applied_at timestamptz not null default now(),
   unique (user_id, job_id)
 );
@@ -300,9 +302,11 @@ alter table public.saved_items add constraint saved_items_item_type_check
   check (item_type in ('job', 'guide', 'tool'));
 
 alter table public.applications add column if not exists status text not null default 'pending';
+alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
+alter table public.applications add column if not exists cover_letter text;
 alter table public.applications drop constraint if exists applications_status_check;
 alter table public.applications add constraint applications_status_check
-  check (status in ('pending', 'reviewed', 'interview'));
+  check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired'));
 
 alter table public.jobs add column if not exists status text not null default 'pending';
 alter table public.jobs add column if not exists employer_id uuid references public.profiles(id) on delete set null;

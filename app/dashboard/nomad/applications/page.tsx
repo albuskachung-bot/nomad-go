@@ -1,6 +1,6 @@
 import { BriefcaseBusiness, CalendarDays } from "lucide-react";
 
-type ApplicationStatus = "pending" | "reviewed" | "interview";
+type ApplicationStatus = "pending" | "reviewed" | "interview" | "rejected" | "hired";
 
 type ApplicationRecord = {
   id: string;
@@ -52,6 +52,14 @@ const statusStyles: Record<
   interview: {
     label: "面試邀約",
     className: "bg-emerald-50 text-emerald-700"
+  },
+  rejected: {
+    label: "未錄取",
+    className: "bg-rose-50 text-rose-700"
+  },
+  hired: {
+    label: "錄取",
+    className: "bg-emerald-100 text-emerald-800"
   }
 };
 
