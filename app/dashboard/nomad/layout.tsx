@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Mail,
+  MessageSquareText,
   Settings,
   UserRound,
   type LucideIcon
@@ -55,6 +56,12 @@ const navItems: NavItem[] = [
     label: "應徵紀錄",
     helper: "Applications",
     icon: Briefcase
+  },
+  {
+    href: "/dashboard/applications/messages",
+    label: "訊息中心",
+    helper: "Messages",
+    icon: MessageSquareText
   },
   {
     href: "/dashboard/nomad/billing",
