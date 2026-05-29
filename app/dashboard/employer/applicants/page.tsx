@@ -120,11 +120,6 @@ function getInitial(row: ApplicantRow) {
   return (row.profile?.full_name ?? row.application.user_id).slice(0, 1).toUpperCase();
 }
 
-function buildMailtoHref(email: string, companyName: string, jobTitle: string) {
-  const subject = `[${companyName}] 遠距職缺應徵聯絡 - ${jobTitle}`;
-  return `mailto:${email.trim()}?subject=${encodeURIComponent(subject)}`;
-}
-
 export default function EmployerApplicantsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ApplicantRow[]>([]);
@@ -646,29 +641,13 @@ export default function EmployerApplicantsPage() {
                 <FileText className="h-4 w-4" aria-hidden="true" />
                 查看人才檔案
               </Link>
-              {selectedRow.applicantEmail ? (
-                <a
-                  href={buildMailtoHref(
-                    selectedRow.applicantEmail,
-                    selectedRow.companyName,
-                    selectedRow.job.title
-                  )}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-                >
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                  發送 Email
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
-                  title="目前尚未透過受權限保護的 RPC 取得求職者信箱。"
-                >
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                  發送 Email
-                </button>
-              )}
+              <Link
+                href={`/dashboard/employer/messages?application_id=${selectedRow.application.id}`}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                發送站內信
+              </Link>
             </div>
 
             <form onSubmit={handleReviewSave} className="mt-6 space-y-4">

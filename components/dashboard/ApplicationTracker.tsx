@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarDays,
   ClipboardList,
-  FileSearch
+  FileSearch,
+  Mail
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ApplicationStatus } from "@/lib/types";
@@ -235,7 +237,7 @@ export default async function ApplicationTracker() {
               return (
                 <article
                   key={application.id}
-                  className="grid gap-4 px-5 py-5 transition hover:bg-emerald-50/40 md:grid-cols-[minmax(0,1fr)_170px_120px]"
+                  className="grid gap-4 px-5 py-5 transition hover:bg-emerald-50/40 lg:grid-cols-[minmax(0,1fr)_170px_120px_140px]"
                 >
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
@@ -260,6 +262,16 @@ export default async function ApplicationTracker() {
                     >
                       {status.label}
                     </span>
+                  </div>
+
+                  <div className="flex items-center lg:justify-end">
+                    <Link
+                      href={`/dashboard/applications/messages?application_id=${application.id}`}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                    >
+                      <Mail className="h-4 w-4" aria-hidden="true" />
+                      聯絡企業
+                    </Link>
                   </div>
                 </article>
               );

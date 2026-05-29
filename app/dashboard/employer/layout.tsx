@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Mail,
+  MessageSquareText,
   UserCog,
   Users,
   type LucideIcon
@@ -54,6 +55,12 @@ const navItems: NavItem[] = [
     label: "應徵者管理",
     helper: "Applicants",
     icon: Users
+  },
+  {
+    href: "/dashboard/employer/messages",
+    label: "訊息中心",
+    helper: "Inbox",
+    icon: MessageSquareText
   },
   {
     href: "/dashboard/employer/team",

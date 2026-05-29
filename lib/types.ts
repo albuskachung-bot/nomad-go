@@ -221,6 +221,15 @@ export type Application = {
   applied_at: string;
 };
 
+export type Message = {
+  id: string;
+  application_id: string;
+  sender_id: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+};
+
 export type CompanyApplicationWithNotes = Application & {
   applicant_email: string | null;
 };
@@ -357,6 +366,16 @@ export type Database = {
           applied_at?: string;
         };
         Update: Partial<Application>;
+        Relationships: [];
+      };
+      messages: {
+        Row: Message;
+        Insert: Omit<Message, "id" | "created_at" | "is_read"> & {
+          id?: string;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Message>;
         Relationships: [];
       };
     };
