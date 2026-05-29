@@ -30,6 +30,8 @@ type ApplicantRow = {
   application: Application;
   job: Job;
   profile: Profile | null;
+  applicantEmail: string | null;
+  companyName: string;
 };
 
 type Toast = {
@@ -118,6 +120,11 @@ function getInitial(row: ApplicantRow) {
   return (row.profile?.full_name ?? row.application.user_id).slice(0, 1).toUpperCase();
 }
 
+function buildMailtoHref(email: string, companyName: string, jobTitle: string) {
+  const subject = `[${companyName}] 遠距職缺應徵聯絡 - ${jobTitle}`;
+  return `mailto:${email.trim()}?subject=${encodeURIComponent(subject)}`;
+}
+
 export default function EmployerApplicantsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ApplicantRow[]>([]);
@@ -196,7 +203,7 @@ export default function EmployerApplicantsPage() {
         return;
       }
 
-      let typedApplications: Application[] = [];
+      let typedApplications: CompanyApplicationWithNotes[] = [];
       const notesResult = await supabase.rpc("get_company_applications_with_notes", {
         target_company_id: workspaceResult.context.company.id
       });
@@ -223,7 +230,8 @@ export default function EmployerApplicantsPage() {
 
         typedApplications = ((applications ?? []) as Omit<Application, "internal_notes">[]).map((application) => ({
           ...application,
-          internal_notes: null
+          internal_notes: null,
+          applicant_email: null
         }));
       } else {
         typedApplications = (notesResult.data ?? []) as CompanyApplicationWithNotes[];
@@ -247,10 +255,11 @@ export default function EmployerApplicantsPage() {
 
       const jobsById = new Map(typedJobs.map((job) => [job.id, job]));
       const profilesById = new Map(((profiles ?? []) as Profile[]).map((profile) => [profile.id, profile]));
+      const workspaceCompanyName = workspaceResult.context.company.name;
 
       setRows(
         typedApplications
-          .map((application) => {
+          .map<ApplicantRow | null>((application) => {
             const job = jobsById.get(application.job_id);
 
             if (!job) {
@@ -260,7 +269,9 @@ export default function EmployerApplicantsPage() {
             return {
               application,
               job,
-              profile: profilesById.get(application.user_id) ?? null
+              profile: profilesById.get(application.user_id) ?? null,
+              applicantEmail: application.applicant_email ?? null,
+              companyName: workspaceCompanyName ?? job.company ?? "未命名公司"
             };
           })
           .filter((row): row is ApplicantRow => row !== null)
@@ -577,7 +588,7 @@ export default function EmployerApplicantsPage() {
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <Mail className="h-4 w-4" aria-hidden="true" />
-                      {selectedRow.profile?.title ?? selectedRow.profile?.location ?? selectedRow.application.user_id}
+                      {selectedRow.applicantEmail ?? "尚未取得求職者信箱"}
                     </span>
                   </div>
                 </div>
@@ -635,6 +646,29 @@ export default function EmployerApplicantsPage() {
                 <FileText className="h-4 w-4" aria-hidden="true" />
                 查看人才檔案
               </Link>
+              {selectedRow.applicantEmail ? (
+                <a
+                  href={buildMailtoHref(
+                    selectedRow.applicantEmail,
+                    selectedRow.companyName,
+                    selectedRow.job.title
+                  )}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Mail className="h-4 w-4" aria-hidden="true" />
+                  發送 Email
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
+                  title="目前尚未透過受權限保護的 RPC 取得求職者信箱。"
+                >
+                  <Mail className="h-4 w-4" aria-hidden="true" />
+                  發送 Email
+                </button>
+              )}
             </div>
 
             <form onSubmit={handleReviewSave} className="mt-6 space-y-4">

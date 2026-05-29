@@ -221,7 +221,9 @@ export type Application = {
   applied_at: string;
 };
 
-export type CompanyApplicationWithNotes = Application;
+export type CompanyApplicationWithNotes = Application & {
+  applicant_email: string | null;
+};
 
 export type Database = {
   public: {

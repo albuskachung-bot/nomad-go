@@ -79,7 +79,9 @@ create policy applications_company_member_update_review
     )
   );
 
-create or replace function public.get_company_applications_with_notes(target_company_id uuid)
+drop function if exists public.get_company_applications_with_notes(uuid);
+
+create function public.get_company_applications_with_notes(target_company_id uuid)
 returns table (
   id uuid,
   user_id uuid,
@@ -88,6 +90,7 @@ returns table (
   resume_url text,
   cover_letter text,
   internal_notes text,
+  applicant_email text,
   applied_at timestamptz
 )
 language sql
@@ -103,9 +106,11 @@ as $$
     applications.resume_url,
     applications.cover_letter,
     applications.internal_notes,
+    applicant_auth.email,
     applications.applied_at
   from public.applications
   join public.jobs on jobs.id = applications.job_id
+  left join auth.users applicant_auth on applicant_auth.id = applications.user_id
   where (
       jobs.company_id = target_company_id
       and public.is_company_member(target_company_id)
