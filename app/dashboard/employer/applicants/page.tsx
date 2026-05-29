@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, UserRound, XCircle } from "lucide-react";
+import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type { Application, Job, Profile } from "@/lib/types";
 
@@ -83,22 +84,44 @@ export default function EmployerApplicantsPage() {
         throw userError ?? new Error("尚未登入。");
       }
 
-      const { data: jobs, error: jobsError } = await supabase
+      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
+
+      if (workspaceResult.error) {
+        throw new Error(workspaceResult.error);
+      }
+
+      if (!workspaceResult.context?.company) {
+        setRows([]);
+        return;
+      }
+
+      let jobsResult = await supabase
         .from("jobs")
         .select("*")
-        .eq("employer_id", user.id);
+        .eq("company_id", workspaceResult.context.company.id);
 
-      if (jobsError) {
-        if (isMissingDataSourceError(jobsError)) {
-          console.warn("[employer-applicants] jobs table is unavailable; showing empty state", jobsError);
+      if (
+        jobsResult.error &&
+        isMissingDataSourceError(jobsResult.error) &&
+        workspaceResult.context.isOwner
+      ) {
+        jobsResult = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("employer_id", user.id);
+      }
+
+      if (jobsResult.error) {
+        if (isMissingDataSourceError(jobsResult.error)) {
+          console.warn("[employer-applicants] jobs table is unavailable; showing empty state", jobsResult.error);
           setRows([]);
           return;
         }
 
-        throw jobsError;
+        throw jobsResult.error;
       }
 
-      const typedJobs = (jobs ?? []) as Job[];
+      const typedJobs = (jobsResult.data ?? []) as Job[];
       const jobIds = typedJobs.map((job) => job.id);
 
       if (jobIds.length === 0) {

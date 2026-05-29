@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ImageUp, Loader2, Save, XCircle } from "lucide-react";
+import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type { Company } from "@/lib/types";
 
@@ -53,6 +54,7 @@ export default function EmployerCompanyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
+  const [canManageCompany, setCanManageCompany] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -80,27 +82,35 @@ export default function EmployerCompanyPage() {
         throw userError ?? new Error("尚未登入。");
       }
 
-      const { data, error } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("employer_id", user.id)
-        .limit(1)
-        .maybeSingle();
+      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
 
-      if (error) {
-        if (isEmptyCompanyReadError(error)) {
-          console.warn("[employer-company] empty company profile state", error);
-          setCompany(null);
-          setLogoUrl("");
-          return;
-        }
-
-        throw error;
+      if (workspaceResult.error && !workspaceResult.isSchemaMissing) {
+        throw new Error(workspaceResult.error);
       }
 
-      setCompany((data as Company | null) ?? null);
-      setLogoUrl(data?.logo_url ?? "");
+      if (workspaceResult.error && workspaceResult.isSchemaMissing) {
+        console.warn("[employer-company] workspace schema is not ready", workspaceResult.error);
+      }
+
+      if (!workspaceResult.context?.company) {
+        setCompany(null);
+        setLogoUrl("");
+        setCanManageCompany(true);
+        return;
+      }
+
+      setCompany((workspaceResult.context.company as Company | null) ?? null);
+      setLogoUrl(workspaceResult.context.company.logo_url ?? "");
+      setCanManageCompany(workspaceResult.context.canManageCompany);
     } catch (error) {
+      if (isEmptyCompanyReadError(error)) {
+        console.warn("[employer-company] empty company profile state", error);
+        setCompany(null);
+        setLogoUrl("");
+        setCanManageCompany(true);
+        return;
+      }
+
       setToast({
         type: "error",
         message: `公司資料讀取失敗：${getErrorMessage(error)}`
@@ -127,6 +137,14 @@ export default function EmployerCompanyPage() {
     const file = event.target.files?.[0];
 
     if (!file) {
+      return;
+    }
+
+    if (!canManageCompany) {
+      setToast({
+        type: "error",
+        message: "你目前沒有公司品牌設定的管理權限。"
+      });
       return;
     }
 
@@ -196,21 +214,43 @@ export default function EmployerCompanyPage() {
         throw userError ?? new Error("尚未登入。");
       }
 
-      const { error } = await supabase
-        .from("companies")
-        .upsert(
+      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
+      const payload = {
+        name: formData.get("name")?.toString().trim() ?? "",
+        logo_url: logoUrl || null,
+        website: formData.get("website")?.toString().trim() || null,
+        description: formData.get("description")?.toString().trim() || null
+      };
+
+      if (workspaceResult.error && !workspaceResult.isSchemaMissing) {
+        throw new Error(workspaceResult.error);
+      }
+
+      if (workspaceResult.context?.company) {
+        if (!workspaceResult.context.canManageCompany) {
+          throw new Error("只有公司 Admin 可以更新公司品牌資料。");
+        }
+
+        const { error } = await supabase
+          .from("companies")
+          .update(payload)
+          .eq("id", workspaceResult.context.company.id);
+
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { error } = await supabase.from("companies").upsert(
           {
             employer_id: user.id,
-            name: formData.get("name")?.toString().trim() ?? "",
-            logo_url: logoUrl || null,
-            website: formData.get("website")?.toString().trim() || null,
-            description: formData.get("description")?.toString().trim() || null
+            ...payload
           },
           { onConflict: "employer_id" }
         );
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       setToast({
@@ -255,6 +295,12 @@ export default function EmployerCompanyPage() {
         </p>
       </section>
 
+      {!canManageCompany ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+          你目前是 Recruiter，只有公司 Admin 可以更新公司品牌設定。
+        </div>
+      ) : null}
+
       <form onSubmit={handleSubmit} className="grid gap-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
           {isLoading ? (
@@ -267,6 +313,7 @@ export default function EmployerCompanyPage() {
                   name="name"
                   required
                   defaultValue={company?.name ?? ""}
+                  disabled={!canManageCompany}
                   className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                 />
               </label>
@@ -277,6 +324,7 @@ export default function EmployerCompanyPage() {
                   name="website"
                   defaultValue={company?.website ?? ""}
                   placeholder="https://company.com"
+                  disabled={!canManageCompany}
                   className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                 />
               </label>
@@ -287,6 +335,7 @@ export default function EmployerCompanyPage() {
                   name="description"
                   rows={6}
                   defaultValue={company?.description ?? ""}
+                  disabled={!canManageCompany}
                   className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                 />
               </label>
@@ -295,7 +344,7 @@ export default function EmployerCompanyPage() {
 
           <button
             type="submit"
-            disabled={isSaving || isUploading || isLoading}
+            disabled={isSaving || isUploading || isLoading || !canManageCompany}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? (
@@ -318,7 +367,7 @@ export default function EmployerCompanyPage() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            disabled={isUploading || isSaving}
+            disabled={isUploading || isSaving || !canManageCompany}
             onChange={handleLogoUpload}
             className="mt-4 w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
           />

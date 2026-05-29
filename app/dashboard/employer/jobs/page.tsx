@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Loader2, Plus, XCircle } from "lucide-react";
+import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type { Job } from "@/lib/types";
 
@@ -9,6 +10,13 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
+
+type WorkspaceState = {
+  companyId: string;
+  employerId: string;
+  companyName: string;
+  isOwner: boolean;
+} | null;
 
 const statusStyles = {
   pending: "bg-amber-50 text-amber-700 ring-amber-100",
@@ -64,6 +72,7 @@ function isSchemaNotReadyError(error: unknown) {
 export default function EmployerJobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companyName, setCompanyName] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceState>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -90,24 +99,46 @@ export default function EmployerJobsPage() {
         throw userError ?? new Error("尚未登入。");
       }
 
-      const [jobsResult, companyResult] = await Promise.all([
-        supabase
+      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
+
+      if (workspaceResult.error) {
+        throw new Error(workspaceResult.error);
+      }
+
+      if (!workspaceResult.context?.company) {
+        setJobs([]);
+        setCompanyName("");
+        setWorkspace(null);
+        return;
+      }
+
+      const currentWorkspace = {
+        companyId: workspaceResult.context.company.id,
+        employerId: workspaceResult.context.company.employer_id,
+        companyName: workspaceResult.context.company.name,
+        isOwner: workspaceResult.context.isOwner
+      };
+      setWorkspace(currentWorkspace);
+      setCompanyName(currentWorkspace.companyName);
+
+      let jobsResult = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("company_id", currentWorkspace.companyId)
+        .order("created_at", { ascending: false });
+
+      if (jobsResult.error && isSchemaNotReadyError(jobsResult.error) && currentWorkspace.isOwner) {
+        jobsResult = await supabase
           .from("jobs")
           .select("*")
           .eq("employer_id", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("companies")
-          .select("name")
-          .eq("employer_id", user.id)
-          .maybeSingle()
-      ]);
+          .order("created_at", { ascending: false });
+      }
 
       if (jobsResult.error) {
         if (isSchemaNotReadyError(jobsResult.error)) {
           console.warn("[employer-jobs] jobs schema is not ready; showing empty state", jobsResult.error);
           setJobs([]);
-          setCompanyName(companyResult.data?.name ?? "");
           return;
         }
 
@@ -115,7 +146,6 @@ export default function EmployerJobsPage() {
       }
 
       setJobs((jobsResult.data ?? []) as Job[]);
-      setCompanyName(companyResult.data?.name ?? "");
     } catch (error) {
       setToast({
         type: "error",
@@ -170,10 +200,22 @@ export default function EmployerJobsPage() {
         throw userError ?? new Error("尚未登入。");
       }
 
+      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
+
+      if (workspaceResult.error) {
+        throw new Error(workspaceResult.error);
+      }
+
+      if (!workspaceResult.context?.company) {
+        throw new Error("請先建立公司品牌資料，再新增職缺。");
+      }
+
+      const currentCompany = workspaceResult.context.company;
       const { error } = await supabase.from("jobs").insert({
-        employer_id: user.id,
+        employer_id: currentCompany.employer_id,
+        company_id: currentCompany.id,
         title: formData.get("title")?.toString().trim() ?? "",
-        company: formData.get("company")?.toString().trim() || companyName || "未命名公司",
+        company: formData.get("company")?.toString().trim() || currentCompany.name || "未命名公司",
         location: formData.get("location")?.toString().trim() ?? "",
         job_type: formData.get("job_type")?.toString().trim() ?? "",
         salary_range: formData.get("salary_range")?.toString().trim() || null,
@@ -187,7 +229,7 @@ export default function EmployerJobsPage() {
 
       if (error) {
         if (isSchemaNotReadyError(error)) {
-          throw new Error("資料庫結構尚未更新，請先執行 Supabase employer console schema patch。");
+          throw new Error("資料庫結構尚未更新，請先執行 Supabase company workspace schema。");
         }
 
         throw error;
@@ -236,7 +278,11 @@ export default function EmployerJobsPage() {
         </p>
       </section>
 
-      <form onSubmit={handleSubmit} className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+      <form
+        key={workspace?.companyId ?? "new-job-form"}
+        onSubmit={handleSubmit}
+        className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200"
+      >
         <div className="flex items-center gap-2 border-b border-gray-100 pb-4">
           <Plus className="h-5 w-5 text-slate-700" aria-hidden="true" />
           <h2 className="text-base font-semibold text-gray-900">發布新職缺</h2>
@@ -244,7 +290,7 @@ export default function EmployerJobsPage() {
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Input name="title" label="職缺名稱" required />
-          <Input name="company" label="公司名稱" defaultValue={companyName} required />
+          <Input name="company" label="公司名稱" defaultValue={workspace?.companyName ?? companyName} required />
           <Input name="location" label="地點 / 時區" placeholder="Remote / APAC" required />
           <Input name="job_type" label="工作型態" placeholder="全職遠端" required />
           <Input name="salary_range" label="薪資區間" placeholder="USD 60k - 90k" />

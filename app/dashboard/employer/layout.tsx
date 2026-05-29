@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Mail,
+  UserCog,
   Users,
   type LucideIcon
 } from "lucide-react";
@@ -53,6 +54,12 @@ const navItems: NavItem[] = [
     label: "應徵者管理",
     helper: "Applicants",
     icon: Users
+  },
+  {
+    href: "/dashboard/employer/team",
+    label: "團隊管理",
+    helper: "Team",
+    icon: UserCog
   }
 ];
 

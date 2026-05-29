@@ -106,6 +106,50 @@ export type Company = {
   updated_at: string;
 };
 
+export type CompanyMemberRole = "admin" | "recruiter";
+
+export type CompanyMember = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  role: CompanyMemberRole;
+  created_at: string;
+};
+
+export type CompanyInviteStatus = "pending" | "accepted";
+
+export type CompanyInvite = {
+  id: string;
+  company_id: string;
+  token: string;
+  email: string | null;
+  status: CompanyInviteStatus;
+  expires_at: string;
+  created_by: string | null;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  created_at: string;
+};
+
+export type CompanyInviteLookup = {
+  invite_id: string;
+  company_id: string;
+  company_name: string;
+  email: string | null;
+  status: CompanyInviteStatus;
+  expires_at: string;
+  is_expired: boolean;
+};
+
+export type CompanyTeamMember = {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: CompanyMemberRole;
+  created_at: string;
+};
+
 export type Talent = {
   id: string;
   profile_id: string | null;
@@ -198,6 +242,35 @@ export type Database = {
         Update: Partial<Company>;
         Relationships: [];
       };
+      company_members: {
+        Row: CompanyMember;
+        Insert: {
+          id?: string;
+          company_id: string;
+          user_id: string;
+          role?: CompanyMemberRole;
+          created_at?: string;
+        };
+        Update: Partial<CompanyMember>;
+        Relationships: [];
+      };
+      company_invites: {
+        Row: CompanyInvite;
+        Insert: {
+          id?: string;
+          company_id: string;
+          token?: string;
+          email?: string | null;
+          status?: CompanyInviteStatus;
+          expires_at?: string;
+          created_by?: string | null;
+          accepted_by?: string | null;
+          accepted_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<CompanyInvite>;
+        Relationships: [];
+      };
       guides: {
         Row: Guide;
         Insert: Omit<Guide, "id" | "created_at"> & {
@@ -273,6 +346,24 @@ export type Database = {
       };
     };
     Functions: {
+      accept_company_invite: {
+        Args: {
+          target_token: string;
+        };
+        Returns: string;
+      };
+      get_company_invite_by_token: {
+        Args: {
+          target_token: string;
+        };
+        Returns: CompanyInviteLookup[];
+      };
+      get_company_team_members: {
+        Args: {
+          target_company_id: string;
+        };
+        Returns: CompanyTeamMember[];
+      };
       set_admin_role_by_email: {
         Args: {
           target_email: string;
