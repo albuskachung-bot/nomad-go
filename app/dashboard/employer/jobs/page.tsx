@@ -31,7 +31,19 @@ const statusLabels = {
   rejected: "已退回"
 };
 
-const categoryOptions = ["軟體工程", "行銷企劃", "產品設計", "營運管理", "客戶服務", "其他"];
+const categoryOptions = [
+  "軟體與系統工程 (Software & Engineering)",
+  "產品與專案管理 (Product & Project Management)",
+  "UI/UX 與視覺設計 (Design & UI/UX)",
+  "數位行銷與公關 (Marketing & PR)",
+  "內容與影音創作 (Content & Media)",
+  "數據與人工智慧 (Data & AI)",
+  "業務與商業開發 (Sales & BD)",
+  "客戶成功與支援 (Customer Success & Support)",
+  "人資與行政招募 (HR & Admin)",
+  "財務與法務 (Finance & Legal)",
+  "其他 (Other)"
+];
 const experienceLevelOptions = [
   "實習 (Intern)",
   "初階 (Junior)",
@@ -199,7 +211,7 @@ export default function EmployerJobsPage() {
     }
 
     const formData = new FormData(form);
-    const category = formData.get("category")?.toString().trim() || "其他";
+    const category = formData.get("category")?.toString().trim() || "其他 (Other)";
     const experienceLevel =
       formData.get("experience_level")?.toString().trim() || "中階 (Mid-Level)";
     const employmentType =

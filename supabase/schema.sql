@@ -38,7 +38,7 @@ create table if not exists public.jobs (
   company text not null,
   location text not null,
   job_type text not null,
-  category text default '其他',
+  category text default '其他 (Other)',
   experience_level text default '中階 (Mid-Level)',
   employment_type text default '全職 (Full-time)',
   salary_range text,
@@ -317,7 +317,7 @@ alter table public.applications add constraint applications_status_check
 
 alter table public.jobs add column if not exists status text not null default 'pending';
 alter table public.jobs add column if not exists employer_id uuid references public.profiles(id) on delete set null;
-alter table public.jobs add column if not exists category text default '其他';
+alter table public.jobs add column if not exists category text default '其他 (Other)';
 alter table public.jobs add column if not exists experience_level text default '中階 (Mid-Level)';
 alter table public.jobs add column if not exists employment_type text default '全職 (Full-time)';
 alter table public.jobs add column if not exists responsibilities text not null default '';
@@ -331,7 +331,7 @@ alter table public.jobs add constraint jobs_status_check
 
 alter table public.jobs drop constraint if exists jobs_category_check;
 alter table public.jobs add constraint jobs_category_check
-  check (category in ('軟體工程', '行銷企劃', '產品設計', '營運管理', '客戶服務', '其他'));
+  check (category in ('軟體與系統工程 (Software & Engineering)', '產品與專案管理 (Product & Project Management)', 'UI/UX 與視覺設計 (Design & UI/UX)', '數位行銷與公關 (Marketing & PR)', '內容與影音創作 (Content & Media)', '數據與人工智慧 (Data & AI)', '業務與商業開發 (Sales & BD)', '客戶成功與支援 (Customer Success & Support)', '人資與行政招募 (HR & Admin)', '財務與法務 (Finance & Legal)', '其他 (Other)'));
 
 alter table public.jobs drop constraint if exists jobs_experience_level_check;
 alter table public.jobs add constraint jobs_experience_level_check

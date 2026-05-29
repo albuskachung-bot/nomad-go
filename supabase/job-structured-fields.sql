@@ -12,7 +12,7 @@ alter table public.jobs add column if not exists nice_to_haves text;
 alter table public.jobs add column if not exists benefits text;
 
 update public.jobs
-set category = coalesce(category, '其他'),
+set category = coalesce(category, '其他 (Other)'),
     experience_level = coalesce(experience_level, '中階 (Mid-Level)'),
     employment_type = coalesce(employment_type, job_type, '全職 (Full-time)'),
     responsibilities = coalesce(responsibilities, description),
@@ -27,7 +27,7 @@ where category is null
    or nice_to_haves is null
    or benefits is null;
 
-alter table public.jobs alter column category set default '其他';
+alter table public.jobs alter column category set default '其他 (Other)';
 alter table public.jobs alter column experience_level set default '中階 (Mid-Level)';
 alter table public.jobs alter column employment_type set default '全職 (Full-time)';
 alter table public.jobs alter column responsibilities set default '';
@@ -37,7 +37,7 @@ alter table public.jobs alter column benefits set default '';
 
 alter table public.jobs drop constraint if exists jobs_category_check;
 alter table public.jobs add constraint jobs_category_check
-  check (category in ('軟體工程', '行銷企劃', '產品設計', '營運管理', '客戶服務', '其他'));
+  check (category in ('軟體與系統工程 (Software & Engineering)', '產品與專案管理 (Product & Project Management)', 'UI/UX 與視覺設計 (Design & UI/UX)', '數位行銷與公關 (Marketing & PR)', '內容與影音創作 (Content & Media)', '數據與人工智慧 (Data & AI)', '業務與商業開發 (Sales & BD)', '客戶成功與支援 (Customer Success & Support)', '人資與行政招募 (HR & Admin)', '財務與法務 (Finance & Legal)', '其他 (Other)'));
 
 alter table public.jobs drop constraint if exists jobs_experience_level_check;
 alter table public.jobs add constraint jobs_experience_level_check
