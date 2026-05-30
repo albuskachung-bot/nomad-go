@@ -266,7 +266,7 @@ export default async function ApplicationTracker() {
 
                   <div className="flex items-center lg:justify-end">
                     <Link
-                      href={`/dashboard/applications/messages?application_id=${application.id}`}
+                      href={`/dashboard/nomad/applications/messages?application_id=${application.id}`}
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
                     >
                       <Mail className="h-4 w-4" aria-hidden="true" />

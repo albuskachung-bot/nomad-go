@@ -53,12 +53,12 @@ const navItems: NavItem[] = [
   },
   {
     href: "/dashboard/nomad/applications",
-    label: "應徵紀錄",
+    label: "投遞紀錄",
     helper: "Applications",
     icon: Briefcase
   },
   {
-    href: "/dashboard/applications/messages",
+    href: "/dashboard/nomad/applications/messages",
     label: "訊息中心",
     helper: "Messages",
     icon: MessageSquareText
@@ -89,6 +89,18 @@ function getDashboardUser(user: SupabaseUser | null): DashboardUser {
   const initial = name.trim().charAt(0).toUpperCase() || "M";
 
   return { email, initial, name };
+}
+
+function isNavItemActive(pathname: string, href: string) {
+  if (href === "/dashboard/nomad") {
+    return pathname === href;
+  }
+
+  if (href === "/dashboard/nomad/applications") {
+    return pathname === href;
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function MemberDashboardLayout({
@@ -164,10 +176,7 @@ export default function MemberDashboardLayout({
         <nav aria-label="會員中心導覽" className="mt-4 flex gap-2 overflow-x-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              item.href === "/dashboard/nomad"
-                ? pathname === item.href
-                : pathname.startsWith(item.href);
+            const isActive = isNavItemActive(pathname, item.href);
 
             return (
               <Link
@@ -198,10 +207,7 @@ export default function MemberDashboardLayout({
         <nav className="mt-8 grid gap-2" aria-label="會員中心導覽">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              item.href === "/dashboard/nomad"
-                ? pathname === item.href
-                : pathname.startsWith(item.href);
+            const isActive = isNavItemActive(pathname, item.href);
 
             return (
               <Link

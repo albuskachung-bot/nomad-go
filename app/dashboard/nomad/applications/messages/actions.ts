@@ -17,7 +17,7 @@ function redirectWithApplicantMessageError(applicationId: string, message: strin
   }
 
   params.set("error", message);
-  redirect(`/dashboard/applications/messages?${params.toString()}`);
+  redirect(`/dashboard/nomad/applications/messages?${params.toString()}`);
 }
 
 export async function sendApplicantMessage(formData: FormData) {
@@ -78,7 +78,8 @@ export async function sendApplicantMessage(formData: FormData) {
     redirectWithApplicantMessageError(applicationId, getWorkspaceErrorMessage(error));
   }
 
-  revalidatePath("/dashboard/applications/messages");
+  revalidatePath("/dashboard/nomad/applications");
+  revalidatePath("/dashboard/nomad/applications/messages");
   revalidatePath("/dashboard/employer/messages");
-  redirect(`/dashboard/applications/messages?application_id=${encodeURIComponent(applicationId)}`);
+  redirect(`/dashboard/nomad/applications/messages?application_id=${encodeURIComponent(applicationId)}`);
 }

@@ -101,7 +101,7 @@ export async function sendEmployerMessage(formData: FormData): Promise<SendEmplo
   }
 
   revalidatePath("/dashboard/employer/messages");
-  revalidatePath("/dashboard/applications/messages");
+  revalidatePath("/dashboard/nomad/applications/messages");
 
   return {
     ok: true,
