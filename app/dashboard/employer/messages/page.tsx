@@ -5,10 +5,9 @@ import {
   FileText,
   Inbox,
   MessageSquareText,
-  Send,
   UserRound
 } from "lucide-react";
-import { sendEmployerMessage } from "@/app/dashboard/employer/messages/actions";
+import EmployerMessageComposer from "@/components/employer/EmployerMessageComposer";
 import { getEmployerWorkspaceContext, getWorkspaceErrorMessage } from "@/lib/employer-workspace";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { CompanyApplicationWithNotes, Job, Message, Profile } from "@/lib/types";
@@ -394,30 +393,7 @@ export default async function EmployerMessagesPage({ searchParams }: EmployerMes
                 )}
               </div>
 
-              <form action={sendEmployerMessage} className="border-t border-slate-200 p-5">
-                <input type="hidden" name="application_id" value={selectedConversation.applicationId} />
-                <label className="sr-only" htmlFor="employer-message-content">
-                  輸入訊息
-                </label>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <textarea
-                    id="employer-message-content"
-                    name="content"
-                    rows={3}
-                    required
-                    maxLength={4000}
-                    placeholder="輸入面試邀約、補件需求或後續安排..."
-                    className="min-h-24 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    <Send className="h-4 w-4" aria-hidden="true" />
-                    送出
-                  </button>
-                </div>
-              </form>
+              <EmployerMessageComposer applicationId={selectedConversation.applicationId} />
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center px-6 py-16 text-center">

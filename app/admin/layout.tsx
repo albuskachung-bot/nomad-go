@@ -6,6 +6,7 @@ import {
   Briefcase,
   Building2,
   CreditCard,
+  Home,
   LayoutDashboard,
   Settings,
   UserCog
@@ -112,11 +113,26 @@ export default function AdminLayout({
           })}
         </nav>
 
-        <div className="mt-auto rounded-xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs font-semibold text-cyan-300">Module readiness</p>
-          <p className="mt-2 text-xs leading-5 text-slate-300">
-            AI 審核與金流 API 已保留介面位置，待服務憑證與工作流串接。
-          </p>
+        <div className="mt-auto space-y-4">
+          <Link
+            href="/"
+            className="flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-3 text-slate-100 transition hover:bg-cyan-400/20 hover:text-white"
+          >
+            <Home className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
+            <span>
+              <span className="block text-sm font-medium">前往前台</span>
+              <span className="mt-0.5 block text-[11px] text-slate-400">
+                View Site
+              </span>
+            </span>
+          </Link>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-semibold text-cyan-300">Module readiness</p>
+            <p className="mt-2 text-xs leading-5 text-slate-300">
+              AI 審核與金流 API 已保留介面位置，待服務憑證與工作流串接。
+            </p>
+          </div>
         </div>
       </aside>
 
@@ -147,6 +163,13 @@ export default function AdminLayout({
               </Link>
             );
           })}
+          <Link
+            href="/"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800 transition hover:bg-cyan-100"
+          >
+            <Home className="h-4 w-4" aria-hidden="true" />
+            前往前台
+          </Link>
         </nav>
       </header>
 

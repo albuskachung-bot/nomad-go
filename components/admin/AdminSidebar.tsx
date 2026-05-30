@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Briefcase,
+  Home,
   Map,
   Settings,
   Users
@@ -60,8 +61,23 @@ export default function AdminSidebar({ role }: { role: ProfileRole | null }) {
         })}
       </nav>
 
-      <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs leading-5 text-gray-300">
-        內部營運工具。內容發布與首頁精選會直接影響前台曝光。
+      <div className="mt-auto space-y-3">
+        <Link
+          href="/"
+          className="flex items-center gap-3 rounded-lg border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-sm font-medium text-gray-100 transition hover:bg-blue-400/20 hover:text-white"
+        >
+          <Home className="h-4 w-4 text-blue-300" aria-hidden="true" />
+          <span>
+            <span className="block">前往前台</span>
+            <span className="mt-0.5 block text-xs font-normal text-gray-400">
+              View Site
+            </span>
+          </span>
+        </Link>
+
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs leading-5 text-gray-300">
+          內部營運工具。內容發布與首頁精選會直接影響前台曝光。
+        </div>
       </div>
     </aside>
   );
