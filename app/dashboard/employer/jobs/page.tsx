@@ -122,10 +122,6 @@ function getPublishButtonLabel(
     return "送出審核";
   }
 
-  if (status === "rejected") {
-    return "入駐未通過無法發布";
-  }
-
   return "審核中無法發布";
 }
 

@@ -145,7 +145,12 @@ export default function EmployerDashboardLayout({
       }
     }
 
+    function handleWorkspaceUpdated() {
+      void loadUserAndWorkspace();
+    }
+
     loadUserAndWorkspace();
+    window.addEventListener("employer-workspace-updated", handleWorkspaceUpdated);
 
     const {
       data: { subscription }
@@ -172,6 +177,7 @@ export default function EmployerDashboardLayout({
 
     return () => {
       ignore = true;
+      window.removeEventListener("employer-workspace-updated", handleWorkspaceUpdated);
       subscription.unsubscribe();
     };
   }, []);
@@ -318,7 +324,7 @@ export default function EmployerDashboardLayout({
           {approvalStatus === "rejected" ? (
             <div className="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold leading-6 text-rose-800 shadow-sm">
               <XCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              <p>❌ 您的入駐申請暫未通過審核，如有疑問請聯繫客服。</p>
+              <p>❌ 您的入駐申請暫未通過審核，請確認資料正確性或聯繫平台客服。</p>
             </div>
           ) : null}
 

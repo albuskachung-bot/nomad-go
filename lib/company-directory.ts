@@ -25,9 +25,9 @@ const mockCompanies: Company[] = [
     approval_status: "approved",
     industry: "SaaS / Remote Collaboration",
     company_size: "51-200 人",
-    headquarters: "Taipei / Singapore",
+    hq_location: "Taipei / Singapore",
     remote_policy: "Remote-first，核心協作時段以亞洲時區為主，支援跨國非同步工作。",
-    benefit_tags: ["彈性工時", "遠端設備補助", "年度學習預算"],
+    perks_tags: ["彈性工時", "遠端設備補助", "年度學習預算"],
     tax_id: null,
     verification_doc_url: null,
     created_at: "2026-05-22T03:10:00.000Z",
@@ -43,9 +43,9 @@ const mockCompanies: Company[] = [
     approval_status: "approved",
     industry: "Productivity / Work OS",
     company_size: "11-50 人",
-    headquarters: "Remote / APAC",
+    hq_location: "Remote / APAC",
     remote_policy: "Fully remote，支援 UTC+6 至 UTC+10 團隊協作。",
-    benefit_tags: ["遠端合約", "彈性排程", "可長期合作"],
+    perks_tags: ["遠端合約", "彈性排程", "可長期合作"],
     tax_id: null,
     verification_doc_url: null,
     created_at: "2026-05-05T08:00:00.000Z",
@@ -108,8 +108,10 @@ export function getCompanyIndustry(company: Company, jobs: Job[] = []) {
 }
 
 export function getCompanyBenefitTags(company: Company, jobs: Job[] = []) {
-  if (company.benefit_tags?.length) {
-    return company.benefit_tags;
+  const companyPerks = company.perks_tags ?? company.benefit_tags ?? [];
+
+  if (companyPerks.length) {
+    return companyPerks;
   }
 
   const tags = jobs.flatMap((job) => splitTextTags(job.benefits));

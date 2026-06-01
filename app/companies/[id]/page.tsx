@@ -54,6 +54,7 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
 
   const { company, publishedJobs, benefitTags, industry } = profile;
   const websiteHref = getWebsiteHref(company.website);
+  const headquarters = company.hq_location ?? company.headquarters ?? "尚未提供";
   const remotePolicy =
     company.remote_policy ?? "此企業尚未補充遠距政策，請參考下方職缺內容或後續面談資訊。";
 
@@ -97,7 +98,7 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
               <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <InfoPill icon={Sparkles} label="產業類別" value={industry} />
                 <InfoPill icon={Users} label="公司規模" value={company.company_size ?? "尚未提供"} />
-                <InfoPill icon={MapPin} label="總部位置" value={company.headquarters ?? "尚未提供"} />
+                <InfoPill icon={MapPin} label="總部位置" value={headquarters} />
                 <InfoPill icon={BriefcaseBusiness} label="開放職缺" value={`${publishedJobs.length} 個`} />
               </div>
             </div>
@@ -173,7 +174,7 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
             <dl className="mt-5 space-y-4 text-sm">
               <SummaryRow label="產業" value={industry} />
               <SummaryRow label="規模" value={company.company_size ?? "尚未提供"} />
-              <SummaryRow label="總部" value={company.headquarters ?? "尚未提供"} />
+              <SummaryRow label="總部" value={headquarters} />
               <SummaryRow label="職缺" value={`${publishedJobs.length} 個上架中`} />
             </dl>
           </div>

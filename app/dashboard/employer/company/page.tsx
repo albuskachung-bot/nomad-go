@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
+  Clock3,
   FileText,
   ImageUp,
   Loader2,
@@ -11,9 +12,10 @@ import {
   UploadCloud,
   XCircle
 } from "lucide-react";
+import { saveEmployerCompanyProfile } from "@/app/dashboard/employer/company/actions";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
-import type { Company } from "@/lib/types";
+import type { Company, CompanyApprovalStatus } from "@/lib/types";
 
 type Toast = {
   type: "success" | "error";
@@ -24,6 +26,33 @@ const verificationBucket = "verification_docs";
 const verificationMaxFileSize = 10 * 1024 * 1024;
 const verificationMimeTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const verificationExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
+const industryOptions = ["SaaS", "電商", "區塊鏈", "設計代理商", "數位行銷", "教育科技", "金融科技", "其他"];
+const companySizeOptions = ["1-10人", "11-50人", "51-200人", "200人以上"];
+const remotePolicyOptions = ["100% 全遠距", "混合辦公", "依部門彈性調整", "辦公室優先"];
+const approvalStatusMeta: Record<
+  CompanyApprovalStatus,
+  {
+    label: string;
+    className: string;
+    icon: typeof Clock3;
+  }
+> = {
+  pending: {
+    label: "審核中",
+    className: "bg-amber-50 text-amber-700 ring-amber-200",
+    icon: Clock3
+  },
+  approved: {
+    label: "已核准",
+    className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    icon: CheckCircle2
+  },
+  rejected: {
+    label: "未通過",
+    className: "bg-rose-50 text-rose-700 ring-rose-200",
+    icon: XCircle
+  }
+};
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -100,6 +129,10 @@ function getFileNameFromPath(path: string) {
   return path.split("/").filter(Boolean).at(-1) ?? path;
 }
 
+function formatPerksTags(tags: string[] | null | undefined) {
+  return tags?.join(", ") ?? "";
+}
+
 export default function EmployerCompanyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const verificationInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +145,9 @@ export default function EmployerCompanyPage() {
   const [isUploadingVerificationDoc, setIsUploadingVerificationDoc] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const approvalStatus = company?.approval_status ?? null;
+  const approvalMeta = approvalStatus ? approvalStatusMeta[approvalStatus] : null;
+  const ApprovalIcon = approvalMeta?.icon;
 
   const fetchCompany = useCallback(async () => {
     if (!supabase) {
@@ -327,75 +363,24 @@ export default function EmployerCompanyPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!supabase) {
-      setToast({
-        type: "error",
-        message: "尚未設定 Supabase 環境變數，無法儲存公司資料。"
-      });
-      return;
-    }
-
     const formData = new FormData(event.currentTarget);
+    formData.set("logo_url", logoUrl);
+    formData.set("verification_doc_url", verificationDocPath);
 
     try {
       setIsSaving(true);
+      const result = await saveEmployerCompanyProfile(formData);
 
-      const {
-        data: { user },
-        error: userError
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        throw userError ?? new Error("尚未登入。");
-      }
-
-      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
-      const payload = {
-        name: formData.get("name")?.toString().trim() ?? "",
-        logo_url: logoUrl || null,
-        website: formData.get("website")?.toString().trim() || null,
-        description: formData.get("description")?.toString().trim() || null,
-        tax_id: formData.get("tax_id")?.toString().trim() || null,
-        verification_doc_url: verificationDocPath || null
-      };
-
-      if (workspaceResult.error && !workspaceResult.isSchemaMissing) {
-        throw new Error(workspaceResult.error);
-      }
-
-      if (workspaceResult.context?.company) {
-        if (!workspaceResult.context.canManageCompany) {
-          throw new Error("只有公司 Admin 可以更新公司品牌資料。");
-        }
-
-        const { error } = await supabase
-          .from("companies")
-          .update(payload)
-          .eq("id", workspaceResult.context.company.id);
-
-        if (error) {
-          throw error;
-        }
-      } else {
-        const { error } = await supabase.from("companies").upsert(
-          {
-            employer_id: user.id,
-            ...payload
-          },
-          { onConflict: "employer_id" }
-        );
-
-        if (error) {
-          throw error;
-        }
+      if (!result.ok) {
+        throw new Error(result.message);
       }
 
       setToast({
         type: "success",
-        message: "公司資料已更新。"
+        message: result.message
       });
       await fetchCompany();
+      window.dispatchEvent(new Event("employer-workspace-updated"));
     } catch (error) {
       setToast({
         type: "error",
@@ -427,7 +412,17 @@ export default function EmployerCompanyPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Company Profile
         </p>
-        <h1 className="mt-2 text-3xl font-semibold text-gray-900">公司品牌設定</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold text-gray-900">公司品牌設定</h1>
+          {approvalMeta && ApprovalIcon ? (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${approvalMeta.className}`}
+            >
+              <ApprovalIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {approvalMeta.label}
+            </span>
+          ) : null}
+        </div>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">
           這些資訊會出現在職缺詳情頁的雇主資訊區塊。
         </p>
@@ -491,6 +486,86 @@ export default function EmployerCompanyPage() {
                       className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
                     />
                   </label>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-900">產業類別</span>
+                      <select
+                        name="industry"
+                        defaultValue={company?.industry ?? ""}
+                        disabled={!canManageCompany}
+                        className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                      >
+                        <option value="">請選擇產業類別</option>
+                        {industryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-900">公司規模</span>
+                      <select
+                        name="company_size"
+                        defaultValue={company?.company_size ?? ""}
+                        disabled={!canManageCompany}
+                        className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                      >
+                        <option value="">請選擇公司規模</option>
+                        {companySizeOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-900">總部位置</span>
+                      <input
+                        name="hq_location"
+                        defaultValue={company?.hq_location ?? company?.headquarters ?? ""}
+                        placeholder="台灣台北 / 遠距無實體總部"
+                        disabled={!canManageCompany}
+                        className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-900">遠距政策</span>
+                      <select
+                        name="remote_policy"
+                        defaultValue={company?.remote_policy ?? ""}
+                        disabled={!canManageCompany}
+                        className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                      >
+                        <option value="">請選擇遠距政策</option>
+                        {remotePolicyOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block md:col-span-2">
+                      <span className="text-sm font-medium text-gray-900">
+                        福利標籤
+                      </span>
+                      <input
+                        name="perks_tags"
+                        defaultValue={formatPerksTags(company?.perks_tags ?? company?.benefit_tags)}
+                        placeholder="使用半形逗號 (,) 分隔多個標籤，例如：遠端設備補助, 彈性工時, 年度學習預算"
+                        disabled={!canManageCompany}
+                        className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition placeholder:text-gray-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                      />
+                      <span className="mt-2 block text-xs text-gray-500">
+                        使用半形逗號 (,) 分隔多個標籤。
+                      </span>
+                    </label>
+                  </div>
                 </>
               )}
             </div>

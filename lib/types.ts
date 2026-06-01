@@ -113,8 +113,10 @@ export type Company = {
   approval_status: CompanyApprovalStatus;
   industry?: string | null;
   company_size?: string | null;
+  hq_location?: string | null;
   headquarters?: string | null;
   remote_policy?: string | null;
+  perks_tags?: string[] | null;
   benefit_tags?: string[] | null;
   tax_id: string | null;
   verification_doc_url: string | null;
