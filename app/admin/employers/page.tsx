@@ -1,9 +1,11 @@
+import Link from "next/link";
 import {
   Building2,
   CheckCircle2,
   CircleAlert,
   Clock3,
   Database,
+  Eye,
   ExternalLink,
   FileText,
   XCircle
@@ -260,7 +262,12 @@ export default async function AdminEmployersPage() {
                 return (
                   <tr key={employer.id} className="transition hover:bg-slate-50/70">
                     <td className="px-6 py-5 font-semibold text-slate-900">
-                      {employer.name || "未命名企業"}
+                      <Link
+                        href={`/admin/employers/${employer.id}`}
+                        className="hover:text-cyan-700"
+                      >
+                        {employer.name || "未命名企業"}
+                      </Link>
                     </td>
                     <td className="px-6 py-5 text-slate-600">
                       {employer.website || "尚未提供"}
@@ -345,7 +352,14 @@ export default async function AdminEmployersPage() {
                     </td>
                     <td className="px-6 py-5">
                       {approvalStatus === "pending" ? (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Link
+                            href={`/admin/employers/${employer.id}`}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                          >
+                            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                            查看詳情
+                          </Link>
                           <form action={submitCompanyApprovalStatus}>
                             <input type="hidden" name="company_id" value={employer.id} />
                             <input type="hidden" name="approval_status" value="approved" />
@@ -370,9 +384,15 @@ export default async function AdminEmployersPage() {
                           </form>
                         </div>
                       ) : (
-                        <span className="block text-right text-xs font-medium text-slate-400">
-                          無待處理動作
-                        </span>
+                        <div className="flex justify-end">
+                          <Link
+                            href={`/admin/employers/${employer.id}`}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                          >
+                            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                            查看詳情
+                          </Link>
+                        </div>
                       )}
                     </td>
                   </tr>

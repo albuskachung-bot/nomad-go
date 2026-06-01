@@ -104,6 +104,7 @@ export async function updateCompanyApprovalStatus(formData: FormData): Promise<A
   }
 
   revalidatePath("/admin/employers");
+  revalidatePath(`/admin/employers/${companyId}`);
   revalidatePath("/dashboard/employer");
 
   return {
