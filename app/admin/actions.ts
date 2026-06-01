@@ -2,10 +2,12 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import type { User } from "@supabase/supabase-js";
 import { canManageSiteSettings, isAdminRole, type AdminRole } from "@/lib/admin-auth";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { platformApiSettingKeys } from "@/lib/platform-settings";
-import type { ContentStatus, ProfileRole } from "@/lib/types";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { ContentStatus, Database, ProfileRole } from "@/lib/types";
 
 type CurationTable = "jobs" | "guides" | "talents" | "profiles";
 type UserManagementRole = ProfileRole;
@@ -29,6 +31,23 @@ function isUserManagementRole(role: string | undefined): role is UserManagementR
 
 function isAssignableAdminRole(role: string | undefined): role is AdminRole {
   return isAdminRole(role as ProfileRole);
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function getAdminInviteRedirectTo() {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+
+  if (!siteUrl) {
+    return undefined;
+  }
+
+  return `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/admin`;
 }
 
 async function requireAdmin() {
@@ -334,27 +353,148 @@ export async function removeTeamMemberRole(formData: FormData): Promise<ActionRe
   return setTeamMemberRole(formData);
 }
 
+async function findAuthUserByEmail(
+  supabaseAdmin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  email: string
+): Promise<{ user: User | null; error: string | null }> {
+  const normalizedEmail = email.toLowerCase();
+  let page = 1;
+
+  while (page <= 50) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage: 1000
+    });
+
+    if (error) {
+      return {
+        user: null,
+        error: error.message
+      };
+    }
+
+    const user =
+      data.users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail) ?? null;
+
+    if (user) {
+      return {
+        user,
+        error: null
+      };
+    }
+
+    if (!data.nextPage || data.users.length === 0) {
+      break;
+    }
+
+    page = data.nextPage;
+  }
+
+  return {
+    user: null,
+    error: null
+  };
+}
+
+async function upsertAdminProfileRole(
+  supabaseAdmin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  userId: string,
+  role: AdminRole
+): Promise<string | null> {
+  const profileRolePayload = {
+    id: userId,
+    role
+  } as Database["public"]["Tables"]["profiles"]["Insert"];
+
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .upsert(profileRolePayload, { onConflict: "id" });
+
+  return error?.message ?? null;
+}
+
 export async function promoteTeamMemberByEmail(formData: FormData): Promise<ActionResult> {
-  const context = await requireSuperAdmin();
+  await requireSuperAdmin();
   const email = formData.get("email")?.toString().trim().toLowerCase();
   const role = formData.get("role")?.toString();
 
-  if (!email || !isAssignableAdminRole(role)) {
+  if (!email || !isValidEmail(email) || !isAssignableAdminRole(role)) {
     return {
       ok: false,
       message: "請輸入有效 Email，並選擇後台角色。"
     };
   }
 
-  const { error } = await context.supabase.rpc("set_admin_role_by_email", {
-    target_email: email,
-    target_role: role
-  });
+  const supabaseAdmin = createSupabaseAdminClient();
 
-  if (error) {
+  if (!supabaseAdmin) {
     return {
       ok: false,
-      message: error.message
+      message: "尚未設定 SUPABASE_SERVICE_ROLE_KEY，無法新增管理員或發送邀請信。"
+    };
+  }
+
+  const existingUserResult = await findAuthUserByEmail(supabaseAdmin, email);
+
+  if (existingUserResult.error) {
+    return {
+      ok: false,
+      message: existingUserResult.error
+    };
+  }
+
+  if (existingUserResult.user) {
+    const profileError = await upsertAdminProfileRole(
+      supabaseAdmin,
+      existingUserResult.user.id,
+      role
+    );
+
+    if (profileError) {
+      return {
+        ok: false,
+        message: profileError
+      };
+    }
+
+    revalidatePath("/admin/team");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/user-roles");
+
+    return {
+      ok: true,
+      message: "已更新既有會員的管理員權限。"
+    };
+  }
+
+  const { data: inviteData, error: inviteError } =
+    await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: {
+        role
+      },
+      redirectTo: getAdminInviteRedirectTo()
+    });
+
+  if (inviteError) {
+    return {
+      ok: false,
+      message: inviteError.message
+    };
+  }
+
+  if (!inviteData.user) {
+    return {
+      ok: false,
+      message: "邀請信已送出，但無法取得受邀使用者資料，請稍後重新整理確認。"
+    };
+  }
+
+  const profileError = await upsertAdminProfileRole(supabaseAdmin, inviteData.user.id, role);
+
+  if (profileError) {
+    return {
+      ok: false,
+      message: profileError
     };
   }
 
@@ -364,7 +504,7 @@ export async function promoteTeamMemberByEmail(formData: FormData): Promise<Acti
 
   return {
     ok: true,
-    message: "已新增或更新管理員權限。"
+    message: "已發送邀請信至該信箱。"
   };
 }
 
