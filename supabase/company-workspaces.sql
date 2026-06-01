@@ -444,6 +444,12 @@ create policy profiles_company_member_read_applicants
     )
   );
 
+drop policy if exists companies_company_member_read on public.companies;
+create policy companies_company_member_read
+  on public.companies for select
+  to authenticated
+  using (public.is_company_member(id));
+
 drop policy if exists companies_company_admin_update on public.companies;
 
 create policy companies_company_admin_update

@@ -1,15 +1,30 @@
-import { Building2, CheckCircle2, CircleAlert, Clock3, Database, XCircle } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  CircleAlert,
+  Clock3,
+  Database,
+  ExternalLink,
+  FileText,
+  XCircle
+} from "lucide-react";
 import { updateCompanyApprovalStatus } from "@/app/admin/actions";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Company, CompanyApprovalStatus } from "@/lib/types";
 
+type EmployerReviewRecord = Company & {
+  verificationDocSignedUrl: string | null;
+  verificationDocSignedUrlError: string | null;
+};
+
 type EmployersResult = {
-  employers: Company[];
+  employers: EmployerReviewRecord[];
   usingMockData: boolean;
   notice: string | null;
 };
 
-const mockEmployers: Company[] = [
+const mockEmployers: EmployerReviewRecord[] = [
   {
     id: "company-001",
     employer_id: "profile-employer-001",
@@ -18,6 +33,10 @@ const mockEmployers: Company[] = [
     website: "cloudharbor.example.com",
     description: "提供 APAC 企業遠端協作與人才管理 SaaS。",
     approval_status: "approved",
+    tax_id: "24567890",
+    verification_doc_url: "demo/cloud-harbor-registration.pdf",
+    verificationDocSignedUrl: null,
+    verificationDocSignedUrlError: null,
     created_at: "2026-05-22T03:10:00.000Z",
     updated_at: "2026-05-22T03:10:00.000Z"
   },
@@ -29,6 +48,10 @@ const mockEmployers: Company[] = [
     website: "horizon-talent.example.com",
     description: "跨境招募顧問，聚焦產品與工程遠端職缺。",
     approval_status: "approved",
+    tax_id: "53881234",
+    verification_doc_url: null,
+    verificationDocSignedUrl: null,
+    verificationDocSignedUrlError: null,
     created_at: "2026-05-19T07:21:00.000Z",
     updated_at: "2026-05-19T07:21:00.000Z"
   },
@@ -40,6 +63,10 @@ const mockEmployers: Company[] = [
     website: null,
     description: "全球工作者工具整合服務，企業資料待補齊。",
     approval_status: "approved",
+    tax_id: null,
+    verification_doc_url: null,
+    verificationDocSignedUrl: null,
+    verificationDocSignedUrlError: null,
     created_at: "2026-05-15T09:30:00.000Z",
     updated_at: "2026-05-15T09:30:00.000Z"
   }
@@ -90,6 +117,10 @@ function formatDate(value: string) {
   }).format(parsedDate);
 }
 
+function isExternalUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
 async function getEmployers(): Promise<EmployersResult> {
   const supabase = await createSupabaseServerClient();
 
@@ -111,8 +142,41 @@ async function getEmployers(): Promise<EmployersResult> {
       throw error;
     }
 
+    const storageClient = createSupabaseAdminClient() ?? supabase;
+    const employers = await Promise.all(
+      ((data ?? []) as Company[]).map(async (employer) => {
+        const documentPath = employer.verification_doc_url?.trim();
+
+        if (!documentPath) {
+          return {
+            ...employer,
+            verificationDocSignedUrl: null,
+            verificationDocSignedUrlError: null
+          };
+        }
+
+        if (isExternalUrl(documentPath)) {
+          return {
+            ...employer,
+            verificationDocSignedUrl: documentPath,
+            verificationDocSignedUrlError: null
+          };
+        }
+
+        const { data: signedUrlData, error: signedUrlError } = await storageClient.storage
+          .from("verification_docs")
+          .createSignedUrl(documentPath, 60 * 15);
+
+        return {
+          ...employer,
+          verificationDocSignedUrl: signedUrlData?.signedUrl ?? null,
+          verificationDocSignedUrlError: signedUrlError?.message ?? null
+        };
+      })
+    );
+
     return {
-      employers: data ?? [],
+      employers,
       usingMockData: false,
       notice: null
     };
@@ -168,12 +232,13 @@ export default async function AdminEmployersPage() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left text-sm">
+          <table className="w-full min-w-[1240px] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-6 py-4">企業名稱</th>
                 <th className="px-6 py-4">網站</th>
                 <th className="px-6 py-4">企業簡介</th>
+                <th className="px-6 py-4">入駐審查資料</th>
                 <th className="px-6 py-4">入駐日期</th>
                 <th className="px-6 py-4">審核狀態</th>
                 <th className="px-6 py-4">資料狀態</th>
@@ -182,7 +247,12 @@ export default async function AdminEmployersPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {employers.map((employer) => {
-                const isComplete = Boolean(employer.name?.trim() && employer.website?.trim());
+                const isPublicProfileComplete = Boolean(
+                  employer.name?.trim() && employer.website?.trim()
+                );
+                const hasTaxId = Boolean(employer.tax_id?.trim());
+                const hasVerificationDoc = Boolean(employer.verification_doc_url?.trim());
+                const isKybComplete = hasTaxId && hasVerificationDoc;
                 const approvalStatus = employer.approval_status ?? "pending";
                 const approvalMeta = approvalStatusMeta[approvalStatus];
                 const ApprovalIcon = approvalMeta.icon;
@@ -198,6 +268,48 @@ export default async function AdminEmployersPage() {
                     <td className="max-w-sm px-6 py-5 text-slate-600">
                       {employer.description || "尚未填寫企業簡介"}
                     </td>
+                    <td className="px-6 py-5">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">
+                            統一編號 / 註冊字號
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {employer.tax_id || "尚未提供"}
+                          </p>
+                        </div>
+
+                        {employer.verification_doc_url ? (
+                          employer.verificationDocSignedUrl ? (
+                            <a
+                              href={employer.verificationDocSignedUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100 transition hover:bg-cyan-100"
+                            >
+                              <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                              查看登記證明
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
+                              <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                              文件連結暫不可用
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400">
+                            尚未上傳登記證明
+                          </span>
+                        )}
+
+                        {employer.verificationDocSignedUrlError ? (
+                          <p className="max-w-xs text-xs leading-5 text-rose-600">
+                            {employer.verificationDocSignedUrlError}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="whitespace-nowrap px-6 py-5 text-slate-500">
                       {formatDate(employer.created_at)}
                     </td>
@@ -210,15 +322,26 @@ export default async function AdminEmployersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-5">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
-                          isComplete
-                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                            : "bg-amber-50 text-amber-700 ring-amber-200"
-                        }`}
-                      >
-                        {isComplete ? "資料完整" : "待補資料"}
-                      </span>
+                      <div className="flex flex-col gap-2">
+                        <span
+                          className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                            isPublicProfileComplete
+                              ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                              : "bg-amber-50 text-amber-700 ring-amber-200"
+                          }`}
+                        >
+                          {isPublicProfileComplete ? "公開資料完整" : "公開資料待補"}
+                        </span>
+                        <span
+                          className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                            isKybComplete
+                              ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
+                              : "bg-amber-50 text-amber-700 ring-amber-200"
+                          }`}
+                        >
+                          {isKybComplete ? "KYB 已提供" : "KYB 待補"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-5">
                       {approvalStatus === "pending" ? (

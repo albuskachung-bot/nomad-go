@@ -13,6 +13,7 @@ import type { ProfileRole } from "@/lib/types";
 const navItems = [
   { href: "/", label: "首頁" },
   { href: "/jobs", label: "遠端職缺" },
+  { href: "/companies", label: "企業" },
   { href: "/talent", label: "人才自薦" },
   { href: "/pricing", label: "方案" },
   { href: "/toolkit", label: "實用工具" }

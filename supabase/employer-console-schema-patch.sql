@@ -432,7 +432,7 @@ drop policy if exists companies_admin_manage on public.companies;
 create policy companies_public_read
   on public.companies for select
   to anon, authenticated
-  using (true);
+  using (approval_status = 'approved');
 
 create policy companies_employer_manage_own
   on public.companies for all

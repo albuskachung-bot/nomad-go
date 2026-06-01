@@ -984,7 +984,7 @@ begin
     create policy companies_public_read
       on public.companies for select
       to anon, authenticated
-      using (true);
+      using (approval_status = 'approved');
   end if;
 
   if not exists (

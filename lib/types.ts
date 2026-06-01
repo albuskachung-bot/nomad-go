@@ -111,6 +111,13 @@ export type Company = {
   website: string | null;
   description: string | null;
   approval_status: CompanyApprovalStatus;
+  industry?: string | null;
+  company_size?: string | null;
+  headquarters?: string | null;
+  remote_policy?: string | null;
+  benefit_tags?: string[] | null;
+  tax_id: string | null;
+  verification_doc_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -259,9 +266,14 @@ export type Database = {
       };
       companies: {
         Row: Company;
-        Insert: Omit<Company, "id" | "created_at" | "updated_at" | "approval_status"> & {
+        Insert: Omit<
+          Company,
+          "id" | "created_at" | "updated_at" | "approval_status" | "tax_id" | "verification_doc_url"
+        > & {
           id?: string;
           approval_status?: CompanyApprovalStatus;
+          tax_id?: string | null;
+          verification_doc_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
