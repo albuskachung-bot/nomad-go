@@ -7,9 +7,9 @@ import {
   Bookmark,
   BriefcaseBusiness,
   ChevronDown,
-  CreditCard,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Send,
   Settings,
   Shield,
@@ -58,10 +58,10 @@ const memberItems: MenuItem[] = [
     icon: Send
   },
   {
-    href: "/dashboard/nomad/billing",
-    label: "方案與帳單",
-    description: "Billing",
-    icon: CreditCard
+    href: "/dashboard/nomad/applications/messages",
+    label: "訊息中心",
+    description: "Messages",
+    icon: MessageSquare
   },
   {
     href: "/dashboard/nomad/settings",
