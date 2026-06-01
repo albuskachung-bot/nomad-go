@@ -457,6 +457,12 @@ async function upsertAdminProfileRole(
   return error?.message ?? null;
 }
 
+function revalidateTeamManagementPaths() {
+  revalidatePath("/admin/team");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/user-roles");
+}
+
 export async function promoteTeamMemberByEmail(formData: FormData): Promise<ActionResult> {
   await requireSuperAdmin();
   const email = formData.get("email")?.toString().trim().toLowerCase();
@@ -501,13 +507,11 @@ export async function promoteTeamMemberByEmail(formData: FormData): Promise<Acti
       };
     }
 
-    revalidatePath("/admin/team");
-    revalidatePath("/admin/users");
-    revalidatePath("/admin/user-roles");
+    revalidateTeamManagementPaths();
 
     return {
       ok: true,
-      message: "已更新既有會員的管理員權限。"
+      message: "該使用者已是會員，已直接升級其權限，無需發送邀請信"
     };
   }
 
@@ -542,13 +546,11 @@ export async function promoteTeamMemberByEmail(formData: FormData): Promise<Acti
     };
   }
 
-  revalidatePath("/admin/team");
-  revalidatePath("/admin/users");
-  revalidatePath("/admin/user-roles");
+  revalidateTeamManagementPaths();
 
   return {
     ok: true,
-    message: "已發送邀請信至該信箱。"
+    message: "已發送邀請信給新管理員"
   };
 }
 
