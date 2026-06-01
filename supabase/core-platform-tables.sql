@@ -12,6 +12,7 @@ create table if not exists public.companies (
   website text,
   description text,
   logo_url text,
+  approval_status text not null default 'pending',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -21,6 +22,32 @@ alter table public.companies add column if not exists name text;
 alter table public.companies add column if not exists website text;
 alter table public.companies add column if not exists description text;
 alter table public.companies add column if not exists logo_url text;
+do $$
+declare
+  approval_status_column_exists boolean;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'companies'
+      and column_name = 'approval_status'
+  )
+  into approval_status_column_exists;
+
+  alter table public.companies
+    add column if not exists approval_status text default 'pending';
+
+  if approval_status_column_exists then
+    update public.companies
+    set approval_status = 'approved'
+    where approval_status is null;
+  else
+    update public.companies
+    set approval_status = 'approved';
+  end if;
+end;
+$$;
 alter table public.companies add column if not exists created_at timestamptz not null default now();
 alter table public.companies add column if not exists updated_at timestamptz not null default now();
 
@@ -28,10 +55,23 @@ update public.companies
 set name = '未命名公司'
 where name is null;
 
+update public.companies
+set approval_status = 'pending'
+where approval_status not in ('pending', 'approved', 'rejected');
+
 alter table public.companies alter column name set not null;
+alter table public.companies alter column approval_status set default 'pending';
+alter table public.companies alter column approval_status set not null;
+
+alter table public.companies drop constraint if exists companies_approval_status_check;
+alter table public.companies add constraint companies_approval_status_check
+  check (approval_status in ('pending', 'approved', 'rejected'));
 
 create unique index if not exists companies_employer_id_key
   on public.companies (employer_id);
+
+create index if not exists companies_approval_status_created_at_idx
+  on public.companies (approval_status, created_at desc);
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),

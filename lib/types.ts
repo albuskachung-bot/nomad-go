@@ -61,6 +61,7 @@ export type ProfileRole =
   | "reviewer";
 
 export type AccountType = "employer" | "nomad";
+export type CompanyApprovalStatus = "pending" | "approved" | "rejected";
 
 export type ProfileWorkExperience = {
   company: string;
@@ -109,6 +110,7 @@ export type Company = {
   logo_url: string | null;
   website: string | null;
   description: string | null;
+  approval_status: CompanyApprovalStatus;
   created_at: string;
   updated_at: string;
 };
@@ -257,8 +259,9 @@ export type Database = {
       };
       companies: {
         Row: Company;
-        Insert: Omit<Company, "id" | "created_at" | "updated_at"> & {
+        Insert: Omit<Company, "id" | "created_at" | "updated_at" | "approval_status"> & {
           id?: string;
+          approval_status?: CompanyApprovalStatus;
           created_at?: string;
           updated_at?: string;
         };

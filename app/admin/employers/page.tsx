@@ -1,6 +1,7 @@
-import { Building2, CircleAlert, Database } from "lucide-react";
+import { Building2, CheckCircle2, CircleAlert, Clock3, Database, XCircle } from "lucide-react";
+import { updateCompanyApprovalStatus } from "@/app/admin/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Company } from "@/lib/types";
+import type { Company, CompanyApprovalStatus } from "@/lib/types";
 
 type EmployersResult = {
   employers: Company[];
@@ -16,6 +17,7 @@ const mockEmployers: Company[] = [
     logo_url: null,
     website: "cloudharbor.example.com",
     description: "提供 APAC 企業遠端協作與人才管理 SaaS。",
+    approval_status: "approved",
     created_at: "2026-05-22T03:10:00.000Z",
     updated_at: "2026-05-22T03:10:00.000Z"
   },
@@ -26,6 +28,7 @@ const mockEmployers: Company[] = [
     logo_url: null,
     website: "horizon-talent.example.com",
     description: "跨境招募顧問，聚焦產品與工程遠端職缺。",
+    approval_status: "approved",
     created_at: "2026-05-19T07:21:00.000Z",
     updated_at: "2026-05-19T07:21:00.000Z"
   },
@@ -36,10 +39,42 @@ const mockEmployers: Company[] = [
     logo_url: null,
     website: null,
     description: "全球工作者工具整合服務，企業資料待補齊。",
+    approval_status: "approved",
     created_at: "2026-05-15T09:30:00.000Z",
     updated_at: "2026-05-15T09:30:00.000Z"
   }
 ];
+
+const approvalStatusMeta: Record<
+  CompanyApprovalStatus,
+  {
+    label: string;
+    className: string;
+    icon: typeof Clock3;
+  }
+> = {
+  pending: {
+    label: "待審核",
+    className: "bg-amber-50 text-amber-700 ring-amber-200",
+    icon: Clock3
+  },
+  approved: {
+    label: "已核准",
+    className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    icon: CheckCircle2
+  },
+  rejected: {
+    label: "已婉拒",
+    className: "bg-rose-50 text-rose-700 ring-rose-200",
+    icon: XCircle
+  }
+};
+
+async function submitCompanyApprovalStatus(formData: FormData) {
+  "use server";
+
+  await updateCompanyApprovalStatus(formData);
+}
 
 function formatDate(value: string) {
   const parsedDate = new Date(value);
@@ -106,7 +141,7 @@ export default async function AdminEmployersPage() {
             企業入駐清單
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            純檢視企業資料與 onboarding 完整度，提供營運團隊後續聯繫依據。
+            檢視企業資料與 onboarding 完整度，並審核企業是否可以正式使用招募功能。
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
@@ -129,23 +164,28 @@ export default async function AdminEmployersPage() {
           </span>
           <div>
             <h2 className="font-semibold text-slate-900">已註冊企業</h2>
-            <p className="text-xs text-slate-500">僅顯示企業主檔資訊，不提供此頁修改。</p>
+            <p className="text-xs text-slate-500">待審核企業可在此頁核准或婉拒。</p>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-6 py-4">企業名稱</th>
                 <th className="px-6 py-4">網站</th>
                 <th className="px-6 py-4">企業簡介</th>
                 <th className="px-6 py-4">入駐日期</th>
+                <th className="px-6 py-4">審核狀態</th>
                 <th className="px-6 py-4">資料狀態</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {employers.map((employer) => {
                 const isComplete = Boolean(employer.name?.trim() && employer.website?.trim());
+                const approvalStatus = employer.approval_status ?? "pending";
+                const approvalMeta = approvalStatusMeta[approvalStatus];
+                const ApprovalIcon = approvalMeta.icon;
 
                 return (
                   <tr key={employer.id} className="transition hover:bg-slate-50/70">
@@ -163,6 +203,14 @@ export default async function AdminEmployersPage() {
                     </td>
                     <td className="px-6 py-5">
                       <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${approvalMeta.className}`}
+                      >
+                        <ApprovalIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {approvalMeta.label}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
                           isComplete
                             ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
@@ -171,6 +219,38 @@ export default async function AdminEmployersPage() {
                       >
                         {isComplete ? "資料完整" : "待補資料"}
                       </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      {approvalStatus === "pending" ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <form action={submitCompanyApprovalStatus}>
+                            <input type="hidden" name="company_id" value={employer.id} />
+                            <input type="hidden" name="approval_status" value="approved" />
+                            <button
+                              type="submit"
+                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                              核准
+                            </button>
+                          </form>
+                          <form action={submitCompanyApprovalStatus}>
+                            <input type="hidden" name="company_id" value={employer.id} />
+                            <input type="hidden" name="approval_status" value="rejected" />
+                            <button
+                              type="submit"
+                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-50 px-3 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 transition hover:bg-rose-100"
+                            >
+                              <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                              婉拒
+                            </button>
+                          </form>
+                        </div>
+                      ) : (
+                        <span className="block text-right text-xs font-medium text-slate-400">
+                          無待處理動作
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

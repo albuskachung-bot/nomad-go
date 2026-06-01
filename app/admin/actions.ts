@@ -7,7 +7,7 @@ import { canManageSiteSettings, isAdminRole, type AdminRole } from "@/lib/admin-
 import { getCurrentAdminContext } from "@/lib/admin";
 import { platformApiSettingKeys } from "@/lib/platform-settings";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { ContentStatus, Database, ProfileRole } from "@/lib/types";
+import type { CompanyApprovalStatus, ContentStatus, Database, ProfileRole } from "@/lib/types";
 
 type CurationTable = "jobs" | "guides" | "talents" | "profiles";
 type UserManagementRole = ProfileRole;
@@ -18,6 +18,7 @@ type ActionResult = {
 
 const curationTables: CurationTable[] = ["jobs", "guides", "talents", "profiles"];
 const statuses: ContentStatus[] = ["pending", "published", "rejected"];
+const companyApprovalStatuses: CompanyApprovalStatus[] = ["pending", "approved", "rejected"];
 const userManagementRoles: UserManagementRole[] = [
   "member",
   "reviewer",
@@ -31,6 +32,10 @@ function isUserManagementRole(role: string | undefined): role is UserManagementR
 
 function isAssignableAdminRole(role: string | undefined): role is AdminRole {
   return isAdminRole(role as ProfileRole);
+}
+
+function isCompanyApprovalStatus(status: string | undefined): status is CompanyApprovalStatus {
+  return Boolean(status && companyApprovalStatuses.includes(status as CompanyApprovalStatus));
 }
 
 function isValidEmail(email: string) {
@@ -72,6 +77,44 @@ async function requireSuperAdmin() {
 
 export async function updateCurationItem(formData: FormData) {
   await updateAdminContentItem(formData);
+}
+
+export async function updateCompanyApprovalStatus(formData: FormData): Promise<ActionResult> {
+  const context = await requireAdmin();
+  const companyId = formData.get("company_id")?.toString();
+  const nextStatus = formData.get("approval_status")?.toString();
+
+  if (!companyId || !isCompanyApprovalStatus(nextStatus)) {
+    return {
+      ok: false,
+      message: "企業審核資料不完整。"
+    };
+  }
+
+  const { error } = await context.supabase
+    .from("companies")
+    .update({ approval_status: nextStatus })
+    .eq("id", companyId);
+
+  if (error) {
+    return {
+      ok: false,
+      message: error.message
+    };
+  }
+
+  revalidatePath("/admin/employers");
+  revalidatePath("/dashboard/employer");
+
+  return {
+    ok: true,
+    message:
+      nextStatus === "approved"
+        ? "企業已核准。"
+        : nextStatus === "rejected"
+          ? "企業已婉拒。"
+          : "企業審核狀態已更新。"
+  };
 }
 
 export async function updateAdminContentItem(formData: FormData) {

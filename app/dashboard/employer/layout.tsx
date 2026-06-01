@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
+  AlertTriangle,
   BriefcaseBusiness,
   Building2,
   LayoutDashboard,
@@ -14,9 +15,12 @@ import {
   MessageSquareText,
   UserCog,
   Users,
+  XCircle,
   type LucideIcon
 } from "lucide-react";
+import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
+import type { CompanyApprovalStatus } from "@/lib/types";
 
 type DashboardUser = {
   email: string;
@@ -95,6 +99,7 @@ export default function EmployerDashboardLayout({
     initial: "N",
     name: "企業會員"
   });
+  const [approvalStatus, setApprovalStatus] = useState<CompanyApprovalStatus | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
@@ -106,26 +111,63 @@ export default function EmployerDashboardLayout({
         initial: "N",
         name: "企業會員"
       });
+      setApprovalStatus(null);
       return;
     }
 
-    supabase.auth
-      .getUser()
-      .then(({ data }) => {
-        if (!ignore) {
-          setDashboardUser(getDashboardUser(data.user));
+    const supabaseClient = supabase;
+
+    async function loadUserAndWorkspace() {
+      try {
+        const { data } = await supabaseClient.auth.getUser();
+
+        if (ignore) {
+          return;
         }
-      })
-      .catch(() => {
+
+        setDashboardUser(getDashboardUser(data.user));
+
+        if (!data.user) {
+          setApprovalStatus(null);
+          return;
+        }
+
+        const workspace = await getEmployerWorkspaceContext(supabaseClient, data.user.id);
+
+        if (!ignore) {
+          setApprovalStatus(workspace.context?.company.approval_status ?? null);
+        }
+      } catch {
         if (!ignore) {
           setDashboardUser(getDashboardUser(null));
+          setApprovalStatus(null);
         }
-      });
+      }
+    }
+
+    loadUserAndWorkspace();
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabaseClient.auth.onAuthStateChange((_event, session) => {
       setDashboardUser(getDashboardUser(session?.user ?? null));
+
+      if (!session?.user) {
+        setApprovalStatus(null);
+        return;
+      }
+
+      getEmployerWorkspaceContext(supabaseClient, session.user.id)
+        .then((workspace) => {
+          if (!ignore) {
+            setApprovalStatus(workspace.context?.company.approval_status ?? null);
+          }
+        })
+        .catch(() => {
+          if (!ignore) {
+            setApprovalStatus(null);
+          }
+        });
     });
 
     return () => {
@@ -265,7 +307,23 @@ export default function EmployerDashboardLayout({
           </div>
         </header>
 
-        <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
+          {approvalStatus === "pending" ? (
+            <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900 shadow-sm">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <p>⚠️ 您的企業入駐申請正在審核中。預計 1-2 個工作天內完成，核准後即可發布職缺。</p>
+            </div>
+          ) : null}
+
+          {approvalStatus === "rejected" ? (
+            <div className="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold leading-6 text-rose-800 shadow-sm">
+              <XCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <p>❌ 您的入駐申請暫未通過審核，如有疑問請聯繫客服。</p>
+            </div>
+          ) : null}
+
+          {children}
+        </main>
       </div>
     </div>
   );

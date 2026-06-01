@@ -65,6 +65,9 @@ create table if not exists public.companies (
   logo_url text,
   website text,
   description text,
+  approval_status text not null default 'pending'
+    constraint companies_approval_status_check
+    check (approval_status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (employer_id)
@@ -350,10 +353,48 @@ create table if not exists public.companies (
   logo_url text,
   website text,
   description text,
+  approval_status text not null default 'pending'
+    constraint companies_approval_status_check
+    check (approval_status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (employer_id)
 );
+
+do $$
+declare
+  approval_status_column_exists boolean;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'companies'
+      and column_name = 'approval_status'
+  )
+  into approval_status_column_exists;
+
+  alter table public.companies
+    add column if not exists approval_status text default 'pending';
+
+  if approval_status_column_exists then
+    update public.companies
+    set approval_status = 'approved'
+    where approval_status is null;
+  else
+    update public.companies
+    set approval_status = 'approved';
+  end if;
+end;
+$$;
+update public.companies
+set approval_status = 'pending'
+where approval_status not in ('pending', 'approved', 'rejected');
+alter table public.companies alter column approval_status set default 'pending';
+alter table public.companies alter column approval_status set not null;
+alter table public.companies drop constraint if exists companies_approval_status_check;
+alter table public.companies add constraint companies_approval_status_check
+  check (approval_status in ('pending', 'approved', 'rejected'));
 
 alter table public.guides add column if not exists status text not null default 'pending';
 alter table public.guides drop constraint if exists guides_status_check;
@@ -377,6 +418,9 @@ create index if not exists jobs_employer_id_created_at_idx
 
 create index if not exists companies_employer_id_idx
   on public.companies (employer_id);
+
+create index if not exists companies_approval_status_created_at_idx
+  on public.companies (approval_status, created_at desc);
 
 create index if not exists guides_featured_created_at_idx
   on public.guides (is_featured, created_at desc);

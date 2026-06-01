@@ -2,10 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Plus, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Lock, Plus, XCircle } from "lucide-react";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
-import type { Job } from "@/lib/types";
+import type { CompanyApprovalStatus, Job } from "@/lib/types";
 
 type Toast = {
   type: "success" | "error";
@@ -16,6 +16,7 @@ type WorkspaceState = {
   companyId: string;
   employerId: string;
   companyName: string;
+  approvalStatus: CompanyApprovalStatus;
   isOwner: boolean;
 } | null;
 
@@ -97,6 +98,37 @@ function isSchemaNotReadyError(error: unknown) {
   );
 }
 
+function getPublishLockMessage(status: CompanyApprovalStatus | null | undefined) {
+  if (status === "rejected") {
+    return "您的入駐申請暫未通過審核，無法發布新職缺。";
+  }
+
+  if (status === "pending") {
+    return "您的企業入駐申請正在審核中，核准後即可發布職缺。";
+  }
+
+  return "請先建立公司品牌資料並完成入駐審核後，再發布職缺。";
+}
+
+function getPublishButtonLabel(
+  status: CompanyApprovalStatus | null | undefined,
+  isLoading: boolean
+) {
+  if (isLoading) {
+    return "確認審核狀態中";
+  }
+
+  if (status === "approved") {
+    return "送出審核";
+  }
+
+  if (status === "rejected") {
+    return "入駐未通過無法發布";
+  }
+
+  return "審核中無法發布";
+}
+
 export default function EmployerJobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -105,6 +137,8 @@ export default function EmployerJobsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const approvalStatus = workspace?.approvalStatus ?? null;
+  const canPublishJobs = approvalStatus === "approved";
 
   const fetchJobs = useCallback(async () => {
     if (!supabase) {
@@ -145,6 +179,7 @@ export default function EmployerJobsPage() {
         companyId: workspaceResult.context.company.id,
         employerId: workspaceResult.context.company.employer_id,
         companyName: workspaceResult.context.company.name,
+        approvalStatus: workspaceResult.context.company.approval_status ?? "pending",
         isOwner: workspaceResult.context.isOwner
       };
       setWorkspace(currentWorkspace);
@@ -259,6 +294,11 @@ export default function EmployerJobsPage() {
       }
 
       const currentCompany = workspaceResult.context.company;
+
+      if (currentCompany.approval_status !== "approved") {
+        throw new Error(getPublishLockMessage(currentCompany.approval_status));
+      }
+
       const { error } = await supabase.from("jobs").insert({
         employer_id: currentCompany.employer_id,
         company_id: currentCompany.id,
@@ -340,11 +380,22 @@ export default function EmployerJobsPage() {
         className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200"
       >
         <div className="flex items-center gap-2 border-b border-gray-100 pb-4">
-          <Plus className="h-5 w-5 text-slate-700" aria-hidden="true" />
+          {canPublishJobs ? (
+            <Plus className="h-5 w-5 text-slate-700" aria-hidden="true" />
+          ) : (
+            <Lock className="h-5 w-5 text-amber-600" aria-hidden="true" />
+          )}
           <h2 className="text-base font-semibold text-gray-900">發布新職缺</h2>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {!isLoading && !canPublishJobs ? (
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p>{getPublishLockMessage(approvalStatus)}</p>
+          </div>
+        ) : null}
+
+        <fieldset disabled={!canPublishJobs || isSubmitting} className="mt-5 grid gap-4 disabled:opacity-60 md:grid-cols-2">
           <Input name="title" label="職缺名稱" required />
           <Input name="company" label="公司名稱" defaultValue={workspace?.companyName ?? companyName} required />
           <Input name="location" label="地點 / 時區" placeholder="Remote / APAC" required />
@@ -373,7 +424,7 @@ export default function EmployerJobsPage() {
             <input
               name="tags"
               placeholder="React, TypeScript, SaaS"
-              className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+              className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
             />
           </label>
 
@@ -381,7 +432,7 @@ export default function EmployerJobsPage() {
           <Textarea name="requirements" label="必備條件" required />
           <Textarea name="nice_to_haves" label="加分條件" />
           <Textarea name="benefits" label="公司福利" />
-        </div>
+        </fieldset>
 
         <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">
           此職缺會使用平台內建一鍵投遞系統收件，不再需要外部應徵連結。
@@ -389,11 +440,15 @@ export default function EmployerJobsPage() {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={!canPublishJobs || isSubmitting}
           className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          送出審核
+          {isSubmitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : canPublishJobs ? null : (
+            <Lock className="h-4 w-4" aria-hidden="true" />
+          )}
+          {getPublishButtonLabel(approvalStatus, isLoading)}
         </button>
       </form>
 
