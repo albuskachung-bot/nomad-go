@@ -6,6 +6,7 @@ import {
   Briefcase,
   Building2,
   CreditCard,
+  Crown,
   Home,
   LayoutDashboard,
   Settings,
@@ -36,6 +37,12 @@ const navItems = [
     label: "財務與訂閱",
     helper: "Billing & Finance",
     icon: CreditCard
+  },
+  {
+    href: "/admin/companies",
+    label: "企業方案控制台",
+    helper: "Company Plan Overrides",
+    icon: Crown
   },
   {
     href: "/admin/team",

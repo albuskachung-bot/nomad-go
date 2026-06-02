@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Building2, Globe2, MapPin } from "lucide-react";
+import type { ReactNode } from "react";
 import JobApplyModal from "@/components/jobs/JobApplyModal";
 import { mockJobs } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,6 +11,155 @@ type JobDetailPageProps = {
     id: string;
   }>;
 };
+
+const sectionHeadings = new Set([
+  "工作職責",
+  "職務內容",
+  "必備條件",
+  "必要條件",
+  "加分條件",
+  "公司福利",
+  "福利制度",
+  "關於你",
+  "Responsibilities",
+  "Requirements",
+  "Nice to haves",
+  "Benefits"
+]);
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const inlinePattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = inlinePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+
+    if (token.startsWith("**")) {
+      nodes.push(<strong key={`${token}-${match.index}`}>{token.slice(2, -2)}</strong>);
+    } else {
+      const linkMatch = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+
+      if (linkMatch) {
+        nodes.push(
+          <a
+            key={`${token}-${match.index}`}
+            href={linkMatch[2]}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {linkMatch[1]}
+          </a>
+        );
+      }
+    }
+
+    lastIndex = inlinePattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes;
+}
+
+function renderJobDescription(markdownText: string) {
+  const blocks: ReactNode[] = [];
+  const lines = markdownText.replace(/\r\n/g, "\n").split("\n");
+  let paragraphLines: string[] = [];
+  let listItems: string[] = [];
+
+  function flushParagraph() {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    const key = `paragraph-${blocks.length}`;
+
+    if (paragraphLines.length > 1) {
+      blocks.push(
+        <ul key={key}>
+          {paragraphLines.map((line, index) => (
+            <li key={`${line}-${index}`}>{renderInlineMarkdown(line)}</li>
+          ))}
+        </ul>
+      );
+    } else {
+      blocks.push(<p key={key}>{renderInlineMarkdown(paragraphLines[0])}</p>);
+    }
+
+    paragraphLines = [];
+  }
+
+  function flushList() {
+    if (listItems.length === 0) {
+      return;
+    }
+
+    blocks.push(
+      <ul key={`list-${blocks.length}`}>
+        {listItems.map((item, index) => (
+          <li key={`${item}-${index}`}>{renderInlineMarkdown(item)}</li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    const markdownHeading = line.match(/^(#{2,4})\s+(.+)$/);
+
+    if (markdownHeading) {
+      flushParagraph();
+      flushList();
+      const HeadingTag = markdownHeading[1].length <= 2 ? "h2" : "h3";
+      blocks.push(
+        <HeadingTag key={`heading-${blocks.length}`}>
+          {renderInlineMarkdown(markdownHeading[2].trim())}
+        </HeadingTag>
+      );
+      return;
+    }
+
+    const normalizedHeading = line.replace(/[：:]\s*$/, "");
+
+    if (sectionHeadings.has(normalizedHeading)) {
+      flushParagraph();
+      flushList();
+      blocks.push(<h3 key={`heading-${blocks.length}`}>{normalizedHeading}</h3>);
+      return;
+    }
+
+    const listMatch = line.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/);
+
+    if (listMatch) {
+      flushParagraph();
+      listItems.push(listMatch[1].trim());
+      return;
+    }
+
+    paragraphLines.push(line);
+  });
+
+  flushParagraph();
+  flushList();
+
+  return blocks.length > 0 ? blocks : <p>此職缺尚未提供完整描述。</p>;
+}
 
 export default async function JobDetailPage({ params }: JobDetailPageProps) {
   const { id } = await params;
@@ -87,10 +237,8 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
             </div>
           </div>
 
-          <div className="mt-8 prose prose-gray max-w-none">
-            <p className="whitespace-pre-line text-base leading-8 text-gray-600">
-              {job.description}
-            </p>
+          <div className="prose prose-blue mt-8 max-w-none prose-headings:tracking-normal prose-h2:text-2xl prose-h3:text-xl prose-p:leading-8 prose-li:leading-7">
+            {renderJobDescription(job.description)}
           </div>
 
           <div className="mt-8 flex flex-wrap gap-2">
@@ -102,7 +250,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
           </div>
         </section>
 
-        <aside className="space-y-5">
+        <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
             <h2 className="text-base font-semibold text-gray-900">雇主資訊</h2>
             <div className="mt-5 flex items-center gap-3">

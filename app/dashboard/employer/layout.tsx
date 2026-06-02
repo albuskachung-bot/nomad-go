@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   BriefcaseBusiness,
   Building2,
+  CreditCard,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -65,6 +66,12 @@ const navItems: NavItem[] = [
     label: "訊息中心",
     helper: "Inbox",
     icon: MessageSquareText
+  },
+  {
+    href: "/dashboard/employer/billing",
+    label: "方案與帳單",
+    helper: "Billing",
+    icon: CreditCard
   },
   {
     href: "/dashboard/employer/team",

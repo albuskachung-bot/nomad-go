@@ -63,6 +63,7 @@ export type ProfileRole =
 
 export type AccountType = "employer" | "nomad";
 export type CompanyApprovalStatus = "pending" | "approved" | "rejected";
+export type CompanySubscriptionPlan = "free" | "pro" | "boost";
 
 export type ProfileWorkExperience = {
   company: string;
@@ -128,6 +129,8 @@ export type Company = {
   culture_video_url?: string | null;
   tax_id: string | null;
   verification_doc_url: string | null;
+  subscription_plan?: CompanySubscriptionPlan;
+  plan_expires_at?: string | null;
   created_at: string;
   updated_at: string;
 };

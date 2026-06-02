@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Briefcase,
+  Building2,
   Home,
   Map,
   Settings,
@@ -22,6 +23,7 @@ const baseItems = [
 
 const superAdminItems = [
   { href: "/admin/team", label: "權限與團隊", icon: Users },
+  { href: "/admin/companies", label: "企業方案控制台", icon: Building2 },
   { href: "/admin/users", label: "會員管控", icon: Users }
 ];
 

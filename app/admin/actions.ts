@@ -7,7 +7,13 @@ import { canManageSiteSettings, isAdminRole, type AdminRole } from "@/lib/admin-
 import { getCurrentAdminContext } from "@/lib/admin";
 import { platformApiSettingKeys } from "@/lib/platform-settings";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { CompanyApprovalStatus, ContentStatus, Database, ProfileRole } from "@/lib/types";
+import type {
+  CompanyApprovalStatus,
+  CompanySubscriptionPlan,
+  ContentStatus,
+  Database,
+  ProfileRole
+} from "@/lib/types";
 
 type CurationTable = "jobs" | "guides" | "talents" | "profiles";
 type UserManagementRole = ProfileRole;
@@ -19,6 +25,7 @@ type ActionResult = {
 const curationTables: CurationTable[] = ["jobs", "guides", "talents", "profiles"];
 const statuses: ContentStatus[] = ["pending", "published", "rejected"];
 const companyApprovalStatuses: CompanyApprovalStatus[] = ["pending", "approved", "rejected"];
+const companySubscriptionPlans: CompanySubscriptionPlan[] = ["free", "pro", "boost"];
 const userManagementRoles: UserManagementRole[] = [
   "member",
   "reviewer",
@@ -36,6 +43,12 @@ function isAssignableAdminRole(role: string | undefined): role is AdminRole {
 
 function isCompanyApprovalStatus(status: string | undefined): status is CompanyApprovalStatus {
   return Boolean(status && companyApprovalStatuses.includes(status as CompanyApprovalStatus));
+}
+
+function isCompanySubscriptionPlan(
+  plan: string | undefined
+): plan is CompanySubscriptionPlan {
+  return Boolean(plan && companySubscriptionPlans.includes(plan as CompanySubscriptionPlan));
 }
 
 function isValidEmail(email: string) {
@@ -115,6 +128,40 @@ export async function updateCompanyApprovalStatus(formData: FormData): Promise<A
         : nextStatus === "rejected"
           ? "企業已婉拒。"
           : "企業審核狀態已更新。"
+  };
+}
+
+export async function updateCompanySubscriptionPlan(formData: FormData): Promise<ActionResult> {
+  const context = await requireSuperAdmin();
+  const companyId = formData.get("company_id")?.toString();
+  const nextPlan = formData.get("subscription_plan")?.toString();
+
+  if (!companyId || !isCompanySubscriptionPlan(nextPlan)) {
+    return {
+      ok: false,
+      message: "企業方案資料不完整。"
+    };
+  }
+
+  const { error } = await context.supabase
+    .from("companies")
+    .update({ subscription_plan: nextPlan })
+    .eq("id", companyId);
+
+  if (error) {
+    return {
+      ok: false,
+      message: error.message
+    };
+  }
+
+  revalidatePath("/admin/companies");
+  revalidatePath(`/admin/companies/${companyId}`);
+  revalidatePath("/dashboard/employer/billing");
+
+  return {
+    ok: true,
+    message: "企業方案已更新。"
   };
 }
 

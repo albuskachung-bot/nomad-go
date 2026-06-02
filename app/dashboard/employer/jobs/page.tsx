@@ -1,8 +1,20 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, HelpCircle, Loader2, Lock, Plus, Trash2, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  Bold,
+  CheckCircle2,
+  Heading3,
+  HelpCircle,
+  List,
+  Loader2,
+  Lock,
+  Plus,
+  Trash2,
+  XCircle
+} from "lucide-react";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type { CompanyApprovalStatus, Job } from "@/lib/types";
@@ -259,7 +271,7 @@ export default function EmployerJobsPage() {
       ["公司福利", benefits]
     ]
       .filter(([, value]) => value.length > 0)
-      .map(([label, value]) => `${label}\n${value}`)
+      .map(([label, value]) => `## ${label}\n\n${value}`)
       .join("\n\n");
     const tags = formData
       .get("tags")
@@ -431,10 +443,10 @@ export default function EmployerJobsPage() {
             />
           </label>
 
-          <Textarea name="responsibilities" label="工作職責" required />
-          <Textarea name="requirements" label="必備條件" required />
-          <Textarea name="nice_to_haves" label="加分條件" />
-          <Textarea name="benefits" label="公司福利" />
+          <MarkdownTextarea name="responsibilities" label="工作職責" required />
+          <MarkdownTextarea name="requirements" label="必備條件" required />
+          <MarkdownTextarea name="nice_to_haves" label="加分條件" />
+          <MarkdownTextarea name="benefits" label="公司福利" />
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
             <div className="flex items-start gap-3">
@@ -570,7 +582,7 @@ export default function EmployerJobsPage() {
   );
 }
 
-function Textarea({
+function MarkdownTextarea({
   name,
   label,
   required
@@ -579,15 +591,87 @@ function Textarea({
   label: string;
   required?: boolean;
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertMarkdown(before: string, after = "", placeholder = "") {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.slice(start, end);
+    const insertedText = selectedText
+      ? `${before}${selectedText}${after}`
+      : `${before}${placeholder}${after}`;
+
+    textarea.setRangeText(insertedText, start, end, "end");
+    textarea.focus();
+  }
+
+  function insertBulletList() {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.slice(start, end);
+    const insertedText = selectedText
+      ? selectedText
+          .split("\n")
+          .map((line) => (line.trim() ? `- ${line.replace(/^[-*•]\s+/, "")}` : line))
+          .join("\n")
+      : "- 請輸入項目";
+
+    textarea.setRangeText(insertedText, start, end, "end");
+    textarea.focus();
+  }
+
   return (
     <label className="block md:col-span-2">
       <span className="text-sm font-medium text-gray-900">{label}</span>
+      <div className="mt-2 flex flex-wrap gap-2 rounded-t-lg border border-b-0 border-gray-200 bg-gray-50 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => insertMarkdown("### ", "", "小標題")}
+          className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 transition hover:bg-gray-100"
+        >
+          <Heading3 className="h-3.5 w-3.5" aria-hidden="true" />
+          H3
+        </button>
+        <button
+          type="button"
+          onClick={() => insertMarkdown("**", "**", "重點文字")}
+          className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 transition hover:bg-gray-100"
+        >
+          <Bold className="h-3.5 w-3.5" aria-hidden="true" />
+          粗體
+        </button>
+        <button
+          type="button"
+          onClick={insertBulletList}
+          className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 transition hover:bg-gray-100"
+        >
+          <List className="h-3.5 w-3.5" aria-hidden="true" />
+          項目符號
+        </button>
+      </div>
       <textarea
+        ref={textareaRef}
         name={name}
         required={required}
-        rows={4}
-        className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+        rows={6}
+        placeholder="可使用 Markdown，例如：### 小標題、**重點文字**、- 項目符號"
+        className="w-full rounded-b-lg border border-gray-200 px-3 py-2 text-sm outline-none transition placeholder:text-gray-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
+      <span className="mt-2 block text-xs leading-5 text-gray-500">
+        支援 Markdown：H3 小標題、粗體與項目符號會在前台自動套用排版。
+      </span>
     </label>
   );
 }
