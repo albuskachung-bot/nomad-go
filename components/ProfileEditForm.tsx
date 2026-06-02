@@ -1,29 +1,31 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BriefcaseBusiness,
+  Camera,
   GraduationCap,
   Globe2,
+  ImageUp,
   Languages,
   LinkIcon,
   Loader2,
   Plus,
   Save,
   Trash2,
+  UploadCloud,
   UserRound
 } from "lucide-react";
+import {
+  saveNomadProfile,
+  type NomadProfilePayload
+} from "@/app/dashboard/nomad/resume/actions";
 import { supabase } from "@/lib/supabase/client";
-import type {
-  Database,
-  Profile,
-  ProfileEducation,
-  ProfileWorkExperience
-} from "@/lib/types";
+import type { Profile, ProfileEducation, ProfileWorkExperience } from "@/lib/types";
 
-type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
-
-const workTypeOptions = ["全職遠端", "兼職", "專案接案"];
+const talentAssetsBucket = "talent_assets";
+const talentAssetMaxFileSize = 8 * 1024 * 1024;
+const workTypeOptions = ["全職遠距", "專案接案", "混合辦公", "兼職"];
 
 type WorkExperienceFormItem = {
   key: string;
@@ -43,7 +45,9 @@ type EducationFormItem = {
 
 type ProfileFormState = {
   full_name: string;
-  title: string;
+  job_title: string;
+  avatar_url: string;
+  banner_url: string;
   location: string;
   timezone: string;
   skills: string;
@@ -55,11 +59,14 @@ type ProfileFormState = {
   github_url: string;
   work_experience: WorkExperienceFormItem[];
   education: EducationFormItem[];
+  is_public: boolean;
 };
 
 const initialForm: ProfileFormState = {
   full_name: "",
-  title: "",
+  job_title: "",
+  avatar_url: "",
+  banner_url: "",
   location: "",
   timezone: "",
   skills: "",
@@ -70,7 +77,8 @@ const initialForm: ProfileFormState = {
   linkedin_url: "",
   github_url: "",
   work_experience: [],
-  education: []
+  education: [],
+  is_public: false
 };
 
 function createKey() {
@@ -110,6 +118,18 @@ function splitList(value: string) {
 
 function joinList(value: string[] | null | undefined) {
   return value?.join(", ") ?? "";
+}
+
+function getFileExtension(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function isSupportedImage(file: File) {
+  return file.type.startsWith("image/");
+}
+
+function getImageContentType(file: File) {
+  return file.type.startsWith("image/") ? file.type : "application/octet-stream";
 }
 
 function normalizeOptional(value: string) {
@@ -182,14 +202,21 @@ function serializeEducation(items: EducationFormItem[]): ProfileEducation[] {
 }
 
 export default function ProfileEditForm() {
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [form, setForm] = useState<ProfileFormState>(initialForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const canSubmit = useMemo(() => Boolean(userId && supabase), [userId]);
+  const canSubmit = useMemo(
+    () => Boolean(userId && supabase && !isUploadingAvatar && !isUploadingBanner),
+    [isUploadingAvatar, isUploadingBanner, userId]
+  );
 
   useEffect(() => {
     async function loadProfile() {
@@ -228,7 +255,9 @@ export default function ProfileEditForm() {
 
       setForm({
         full_name: profile?.full_name ?? "",
-        title: profile?.title ?? "",
+        job_title: profile?.job_title ?? profile?.title ?? "",
+        avatar_url: profile?.avatar_url ?? "",
+        banner_url: profile?.banner_url ?? "",
         location: profile?.location ?? "",
         timezone: profile?.timezone ?? "",
         skills: joinList(profile?.skills),
@@ -239,7 +268,8 @@ export default function ProfileEditForm() {
         linkedin_url: socialValue(profile, "linkedin"),
         github_url: socialValue(profile, "github"),
         work_experience: normalizeWorkExperience(profile?.work_experience),
-        education: normalizeEducation(profile?.education)
+        education: normalizeEducation(profile?.education),
+        is_public: profile?.is_public ?? false
       });
       setIsLoading(false);
     }
@@ -320,6 +350,86 @@ export default function ProfileEditForm() {
     }));
   }
 
+  async function uploadTalentAsset(file: File, folder: "avatars" | "banners") {
+    if (!supabase || !userId) {
+      throw new Error("請先登入後再上傳圖片。");
+    }
+
+    if (!isSupportedImage(file)) {
+      throw new Error("請選擇圖片檔案。");
+    }
+
+    if (file.size > talentAssetMaxFileSize) {
+      throw new Error("圖片大小不可超過 8MB。");
+    }
+
+    const extension = getFileExtension(file.name) || "jpg";
+    const filePath = `${userId}/${folder}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from(talentAssetsBucket)
+      .upload(filePath, file, {
+        contentType: getImageContentType(file),
+        upsert: false
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage.from(talentAssetsBucket).getPublicUrl(filePath);
+    return data.publicUrl;
+  }
+
+  async function handleAvatarUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setIsUploadingAvatar(true);
+
+    try {
+      const publicUrl = await uploadTalentAsset(file, "avatars");
+      updateField("avatar_url", publicUrl);
+      setMessage("大頭照已上傳，請儲存履歷。");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "大頭照上傳失敗。");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handleBannerUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setIsUploadingBanner(true);
+
+    try {
+      const publicUrl = await uploadTalentAsset(file, "banners");
+      updateField("banner_url", publicUrl);
+      setMessage("個人橫幅已上傳，請儲存履歷。");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "個人橫幅上傳失敗。");
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerInputRef.current) {
+        bannerInputRef.current.value = "";
+      }
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -340,34 +450,35 @@ export default function ProfileEditForm() {
       social_urls.github = form.github_url.trim();
     }
 
-    const updatePayload: ProfileUpdate = {
-      full_name: normalizeOptional(form.full_name),
-      title: normalizeOptional(form.title),
-      location: normalizeOptional(form.location),
-      timezone: normalizeOptional(form.timezone),
+    const updatePayload: NomadProfilePayload = {
+      full_name: form.full_name,
+      job_title: form.job_title,
+      avatar_url: form.avatar_url,
+      banner_url: form.banner_url,
+      location: form.location,
+      timezone: form.timezone,
       skills: splitList(form.skills),
       languages: splitList(form.languages),
       work_type: form.work_type,
-      bio: normalizeOptional(form.bio),
-      portfolio_url: normalizeOptional(form.portfolio_url),
-      social_urls,
+      bio: form.bio,
+      portfolio_url: form.portfolio_url,
       work_experience: serializeWorkExperience(form.work_experience),
-      education: serializeEducation(form.education)
+      education: serializeEducation(form.education),
+      is_public: form.is_public,
+      linkedin_url: social_urls.linkedin ?? "",
+      github_url: social_urls.github ?? ""
     };
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update(updatePayload)
-      .eq("id", userId);
+    const result = await saveNomadProfile(updatePayload);
 
     setIsSubmitting(false);
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!result.ok) {
+      setError(result.message);
       return;
     }
 
-    setMessage("Profile 已更新。");
+    setMessage(result.message);
   }
 
   return (
@@ -378,6 +489,116 @@ export default function ProfileEditForm() {
           正在載入 Profile...
         </div>
       ) : null}
+
+      <section className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div className="flex items-center gap-3">
+          <span className="rounded-lg bg-blue-50 p-2 text-blue-600">
+            <ImageUp className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">頂部視覺</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              大頭照與個人橫幅會用於未來的精選人才專頁。
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-900">大頭照 Avatar</p>
+            <div
+              className="mt-4 flex aspect-square items-center justify-center rounded-full bg-white bg-cover bg-center bg-no-repeat shadow-sm ring-1 ring-gray-200"
+              style={form.avatar_url ? { backgroundImage: `url(${form.avatar_url})` } : undefined}
+            >
+              {!form.avatar_url ? (
+                <Camera className="h-10 w-10 text-gray-300" aria-hidden="true" />
+              ) : null}
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              disabled={isUploadingAvatar || isSubmitting || !userId}
+              onChange={handleAvatarUpload}
+              className="mt-4 w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <div className="mt-3 min-h-5">
+              {isUploadingAvatar ? (
+                <p className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  大頭照上傳中...
+                </p>
+              ) : form.avatar_url ? (
+                <button
+                  type="button"
+                  onClick={() => updateField("avatar_url", "")}
+                  className="text-xs font-semibold text-red-600 transition hover:text-red-700"
+                >
+                  移除大頭照
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-900">個人橫幅 Banner</p>
+            <div
+              className="mt-4 flex aspect-[3/1] items-center justify-center rounded-lg bg-white bg-cover bg-center bg-no-repeat shadow-sm ring-1 ring-gray-200"
+              style={form.banner_url ? { backgroundImage: `url(${form.banner_url})` } : undefined}
+            >
+              {!form.banner_url ? (
+                <UploadCloud className="h-10 w-10 text-gray-300" aria-hidden="true" />
+              ) : null}
+            </div>
+            <input
+              ref={bannerInputRef}
+              type="file"
+              accept="image/*"
+              disabled={isUploadingBanner || isSubmitting || !userId}
+              onChange={handleBannerUpload}
+              className="mt-4 w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <div className="mt-3 flex min-h-5 items-start justify-between gap-3">
+              {isUploadingBanner ? (
+                <p className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  個人橫幅上傳中...
+                </p>
+              ) : (
+                <p className="min-w-0 flex-1 text-xs leading-5 text-gray-500">
+                  💡 建議上傳無文字的環境照或個人風格照，推薦尺寸為 1200 x 400 像素 (比例 3:1)。
+                </p>
+              )}
+              {form.banner_url ? (
+                <button
+                  type="button"
+                  onClick={() => updateField("banner_url", "")}
+                  className="shrink-0 text-xs font-semibold text-red-600 transition hover:text-red-700"
+                >
+                  移除橫幅
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={form.is_public}
+            onChange={(event) => updateField("is_public", event.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-emerald-900">
+              公開我的履歷
+            </span>
+            <span className="mt-1 block text-sm leading-6 text-emerald-800">
+              開啟後，您的履歷將有機會顯示在平台前台的「精選人才列表」中，讓企業主動發現您。
+            </span>
+          </span>
+        </label>
+      </section>
 
       <section className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100">
         <div className="flex items-center gap-3">
@@ -404,9 +625,9 @@ export default function ProfileEditForm() {
           <label className="block">
             <span className="text-sm font-medium text-gray-900">專業頭銜</span>
             <input
-              value={form.title}
-              onChange={(event) => updateField("title", event.target.value)}
-              placeholder="例如：資深專案經理 (旅遊電商與 SaaS)"
+              value={form.job_title}
+              onChange={(event) => updateField("job_title", event.target.value)}
+              placeholder="例如：資深產品設計師、全端工程師"
               className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
             />
           </label>
@@ -453,6 +674,9 @@ export default function ProfileEditForm() {
               placeholder="例如：Next.js, Firebase, WIX, 跨國專案管理"
               className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
             />
+            <span className="mt-2 block text-xs text-gray-500">
+              以半形逗號 (,) 分隔多個技能。
+            </span>
           </label>
 
           <label className="block">

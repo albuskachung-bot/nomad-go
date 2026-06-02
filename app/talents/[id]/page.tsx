@@ -1,0 +1,229 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Globe2,
+  MapPin,
+  UserRound,
+  BriefcaseBusiness,
+  Clock3,
+  type LucideIcon
+} from "lucide-react";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Profile } from "@/lib/types";
+
+type TalentDetailPageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+export const dynamic = "force-dynamic";
+
+function initials(name: string | null) {
+  if (!name) {
+    return "NG";
+  }
+
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function getDisplayName(profile: Profile) {
+  return profile.full_name?.trim() || "未命名人才";
+}
+
+function getJobTitle(profile: Profile) {
+  return profile.job_title?.trim() || profile.title?.trim() || "遠端工作人才";
+}
+
+function getWorkType(profile: Profile) {
+  return Array.isArray(profile.work_type) && profile.work_type.length > 0
+    ? profile.work_type.join(" / ")
+    : "開放合作";
+}
+
+async function getPublicTalentProfile(profileId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .eq("is_public", true)
+    .eq("account_type", "nomad")
+    .eq("is_banned", false)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[talents/detail] Failed to load public talent profile.", error);
+    return null;
+  }
+
+  return (data as Profile | null) ?? null;
+}
+
+export default async function TalentDetailPage({ params }: TalentDetailPageProps) {
+  const { id } = await params;
+  const profile = await getPublicTalentProfile(id);
+
+  if (!profile) {
+    notFound();
+  }
+
+  const displayName = getDisplayName(profile);
+  const skills = Array.isArray(profile.skills) ? profile.skills.filter(Boolean) : [];
+
+  return (
+    <div className="bg-gray-50">
+      <section className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+          <Link
+            href="/talent"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            返回精選人才列表
+          </Link>
+
+          {profile.banner_url ? (
+            <div
+              className="mt-6 h-48 rounded-xl bg-gray-100 bg-cover bg-center bg-no-repeat md:h-64"
+              style={{ backgroundImage: `url(${profile.banner_url})` }}
+              aria-label={`${displayName} 個人橫幅`}
+            />
+          ) : null}
+
+          <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-5">
+              <div
+                className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-blue-50 bg-cover bg-center bg-no-repeat text-lg font-semibold text-blue-600 ring-1 ring-blue-100"
+                style={
+                  profile.avatar_url
+                    ? { backgroundImage: `url(${profile.avatar_url})` }
+                    : undefined
+                }
+              >
+                {profile.avatar_url ? null : initials(profile.full_name)}
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+                  Public Talent Profile
+                </p>
+                <h1 className="mt-2 text-4xl font-semibold tracking-normal text-gray-900">
+                  {displayName}
+                </h1>
+                <p className="mt-2 text-lg font-medium text-blue-600">
+                  {getJobTitle(profile)}
+                </p>
+              </div>
+            </div>
+
+            {profile.portfolio_url ? (
+              <a
+                href={profile.portfolio_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-fit items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-600"
+              >
+                查看作品集
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
+        <div className="space-y-6">
+          <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
+            <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+              自我介紹
+            </h2>
+            <p className="mt-5 whitespace-pre-line text-base leading-8 text-gray-600">
+              {profile.bio ?? "這位人才正在補齊自我介紹。"}
+            </p>
+          </section>
+
+          <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
+            <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+              專業技能
+            </h2>
+            {skills.length > 0 ? (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-5 text-sm text-gray-500">尚未提供技能標籤。</p>
+            )}
+          </section>
+        </div>
+
+        <aside className="lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100">
+            <UserRound className="h-6 w-6 text-blue-600" aria-hidden="true" />
+            <h2 className="mt-4 text-base font-semibold text-gray-900">合作資訊</h2>
+            <dl className="mt-5 space-y-4 text-sm">
+              <SummaryRow
+                icon={MapPin}
+                label="所在地"
+                value={profile.location ?? "Remote"}
+              />
+              <SummaryRow
+                icon={Clock3}
+                label="所在時區"
+                value={profile.timezone ?? "Flexible"}
+              />
+              <SummaryRow
+                icon={Globe2}
+                label="偏好型態"
+                value={getWorkType(profile)}
+              />
+              <SummaryRow
+                icon={BriefcaseBusiness}
+                label="作品集"
+                value={profile.portfolio_url ? "已提供" : "尚未提供"}
+              />
+            </dl>
+          </div>
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+function SummaryRow({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
+      <div>
+        <dt className="text-gray-500">{label}</dt>
+        <dd className="mt-1 font-semibold text-gray-900">{value}</dd>
+      </div>
+    </div>
+  );
+}

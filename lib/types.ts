@@ -83,7 +83,9 @@ export type Profile = {
   account_type: AccountType | null;
   full_name: string | null;
   title: string | null;
+  job_title?: string | null;
   avatar_url: string | null;
+  banner_url?: string | null;
   bio: string | null;
   skills: string[];
   location: string | null;
@@ -97,6 +99,7 @@ export type Profile = {
   social_urls: Record<string, string>;
   work_experience: ProfileWorkExperience[];
   education: ProfileEducation[];
+  is_public?: boolean;
   sponsored_until: string | null;
   stripe_customer_id: string | null;
   created_at: string;
