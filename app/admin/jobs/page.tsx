@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CircleAlert, Database, Sparkles } from "lucide-react";
 import AdminJobReviewActions from "@/components/admin/AdminJobReviewActions";
 import { mockJobs } from "@/lib/data";
@@ -126,7 +127,12 @@ export default async function AdminJobsInventoryPage() {
               {jobs.map((job) => (
                 <tr key={job.id} className="transition hover:bg-slate-50/70">
                   <td className="px-6 py-5">
-                    <p className="font-semibold text-slate-900">{job.title || "未命名職缺"}</p>
+                    <Link
+                      href={`/admin/jobs/${job.id}`}
+                      className="font-semibold text-slate-900 underline-offset-4 transition hover:text-cyan-700 hover:underline"
+                    >
+                      {job.title || "未命名職缺"}
+                    </Link>
                     <p className="mt-1 text-xs text-slate-500">{job.job_type || "未指定型態"}</p>
                   </td>
                   <td className="px-6 py-5">

@@ -22,6 +22,7 @@ type Toast = {
   message: string;
 };
 
+const publicAssetsBucket = "public-assets";
 const verificationBucket = "verification_docs";
 const verificationMaxFileSize = 10 * 1024 * 1024;
 const verificationMimeTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -135,13 +136,16 @@ function formatPerksTags(tags: string[] | null | undefined) {
 
 export default function EmployerCompanyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const verificationInputRef = useRef<HTMLInputElement>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
+  const [bannerUrl, setBannerUrl] = useState("");
   const [verificationDocPath, setVerificationDocPath] = useState("");
   const [canManageCompany, setCanManageCompany] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [isUploadingVerificationDoc, setIsUploadingVerificationDoc] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -184,6 +188,7 @@ export default function EmployerCompanyPage() {
       if (!workspaceResult.context?.company) {
         setCompany(null);
         setLogoUrl("");
+        setBannerUrl("");
         setVerificationDocPath("");
         setCanManageCompany(true);
         return;
@@ -191,6 +196,7 @@ export default function EmployerCompanyPage() {
 
       setCompany((workspaceResult.context.company as Company | null) ?? null);
       setLogoUrl(workspaceResult.context.company.logo_url ?? "");
+      setBannerUrl(workspaceResult.context.company.banner_url ?? "");
       setVerificationDocPath(workspaceResult.context.company.verification_doc_url ?? "");
       setCanManageCompany(workspaceResult.context.canManageCompany);
     } catch (error) {
@@ -198,6 +204,7 @@ export default function EmployerCompanyPage() {
         console.warn("[employer-company] empty company profile state", error);
         setCompany(null);
         setLogoUrl("");
+        setBannerUrl("");
         setVerificationDocPath("");
         setCanManageCompany(true);
         return;
@@ -253,7 +260,7 @@ export default function EmployerCompanyPage() {
 
       const extension = file.name.split(".").pop()?.toLowerCase() ?? "png";
       const filePath = `company-logos/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-      const { error } = await supabase.storage.from("public-assets").upload(filePath, file, {
+      const { error } = await supabase.storage.from(publicAssetsBucket).upload(filePath, file, {
         contentType: file.type || "application/octet-stream",
         upsert: false
       });
@@ -262,7 +269,7 @@ export default function EmployerCompanyPage() {
         throw error;
       }
 
-      const { data } = supabase.storage.from("public-assets").getPublicUrl(filePath);
+      const { data } = supabase.storage.from(publicAssetsBucket).getPublicUrl(filePath);
       setLogoUrl(data.publicUrl);
       setToast({
         type: "success",
@@ -277,6 +284,70 @@ export default function EmployerCompanyPage() {
       setIsUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handleBannerUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!canManageCompany) {
+      setToast({
+        type: "error",
+        message: "你目前沒有公司品牌設定的管理權限。"
+      });
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setToast({
+        type: "error",
+        message: "品牌橫幅僅支援圖片檔案。"
+      });
+      return;
+    }
+
+    if (!supabase) {
+      setToast({
+        type: "error",
+        message: "尚未設定 Supabase 環境變數，無法上傳品牌橫幅。"
+      });
+      return;
+    }
+
+    try {
+      setIsUploadingBanner(true);
+
+      const extension = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const filePath = `company-banners/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from(publicAssetsBucket).upload(filePath, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const { data } = supabase.storage.from(publicAssetsBucket).getPublicUrl(filePath);
+      setBannerUrl(data.publicUrl);
+      setToast({
+        type: "success",
+        message: "品牌橫幅已上傳，請儲存公司資料。"
+      });
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: `品牌橫幅上傳失敗：${getErrorMessage(error)}`
+      });
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerInputRef.current) {
+        bannerInputRef.current.value = "";
       }
     }
   }
@@ -365,6 +436,7 @@ export default function EmployerCompanyPage() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     formData.set("logo_url", logoUrl);
+    formData.set("banner_url", bannerUrl);
     formData.set("verification_doc_url", verificationDocPath);
 
     try {
@@ -570,30 +642,77 @@ export default function EmployerCompanyPage() {
               )}
             </div>
 
-            <aside className="rounded-xl bg-gray-50 p-4">
-              <p className="text-sm font-semibold text-gray-900">公司 Logo</p>
-              <div
-                className="mt-4 flex aspect-square items-center justify-center rounded-xl bg-white bg-contain bg-center bg-no-repeat shadow-sm ring-1 ring-gray-200"
-                style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
-              >
-                {!logoUrl ? (
-                  <ImageUp className="h-10 w-10 text-gray-300" aria-hidden="true" />
+            <aside className="space-y-6 rounded-xl bg-gray-50 p-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">品牌橫幅 Banner</p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  上傳至公開 bucket：{publicAssetsBucket}，前台企業專頁可直接讀取。
+                </p>
+                <div
+                  className="mt-4 flex aspect-[3/1] items-center justify-center rounded-xl bg-white bg-cover bg-center bg-no-repeat shadow-sm ring-1 ring-gray-200"
+                  style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
+                >
+                  {!bannerUrl ? (
+                    <ImageUp className="h-9 w-9 text-gray-300" aria-hidden="true" />
+                  ) : null}
+                </div>
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  disabled={isUploadingBanner || isSaving || !canManageCompany}
+                  onChange={handleBannerUpload}
+                  className="mt-4 w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <div className="mt-3 flex min-h-5 items-center justify-between gap-3">
+                  {isUploadingBanner ? (
+                    <p className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      橫幅上傳中...
+                    </p>
+                  ) : (
+                    <p className="min-w-0 flex-1 text-xs leading-5 text-gray-500">
+                      💡 小建議：系統會自動為您填滿版面。為了獲得最佳的視覺體驗，建議上傳無文字的環境照或團隊合照，推薦尺寸為 1200 x 400 像素 (比例 3:1)。
+                    </p>
+                  )}
+                  {bannerUrl ? (
+                    <button
+                      type="button"
+                      disabled={isSaving || !canManageCompany}
+                      onClick={() => setBannerUrl("")}
+                      className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      移除橫幅
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-5">
+                <p className="text-sm font-semibold text-gray-900">公司 Logo</p>
+                <div
+                  className="mt-4 flex aspect-square items-center justify-center rounded-xl bg-white bg-contain bg-center bg-no-repeat shadow-sm ring-1 ring-gray-200"
+                  style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
+                >
+                  {!logoUrl ? (
+                    <ImageUp className="h-10 w-10 text-gray-300" aria-hidden="true" />
+                  ) : null}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  disabled={isUploading || isSaving || !canManageCompany}
+                  onChange={handleLogoUpload}
+                  className="mt-4 w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                {isUploading ? (
+                  <p className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Logo 上傳中...
+                  </p>
                 ) : null}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                disabled={isUploading || isSaving || !canManageCompany}
-                onChange={handleLogoUpload}
-                className="mt-4 w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-60"
-              />
-              {isUploading ? (
-                <p className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  Logo 上傳中...
-                </p>
-              ) : null}
             </aside>
           </div>
         </section>
@@ -680,6 +799,7 @@ export default function EmployerCompanyPage() {
           disabled={
             isSaving ||
             isUploading ||
+            isUploadingBanner ||
             isUploadingVerificationDoc ||
             isLoading ||
             !canManageCompany

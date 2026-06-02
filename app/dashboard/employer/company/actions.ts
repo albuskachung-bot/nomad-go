@@ -72,6 +72,7 @@ export async function saveEmployerCompanyProfile(
     const payload: Database["public"]["Tables"]["companies"]["Update"] = {
       name,
       logo_url: readText(formData.get("logo_url")),
+      banner_url: readText(formData.get("banner_url")),
       website: readText(formData.get("website")),
       description: readText(formData.get("description")),
       industry: readText(formData.get("industry")),

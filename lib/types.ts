@@ -108,6 +108,7 @@ export type Company = {
   employer_id: string;
   name: string;
   logo_url: string | null;
+  banner_url?: string | null;
   website: string | null;
   description: string | null;
   approval_status: CompanyApprovalStatus;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -57,6 +58,7 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
   const headquarters = company.hq_location ?? company.headquarters ?? "尚未提供";
   const remotePolicy =
     company.remote_policy ?? "此企業尚未補充遠距政策，請參考下方職缺內容或後續面談資訊。";
+  const bannerUrl = company.banner_url?.trim();
 
   return (
     <div className="bg-gray-50">
@@ -70,7 +72,24 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
             返回企業總覽
           </Link>
 
-          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
+          {bannerUrl ? (
+            <div className="relative mt-4 mb-6 h-48 w-full overflow-hidden rounded-xl bg-gray-100 md:h-64">
+              <Image
+                src={bannerUrl}
+                alt={`${company.name} 品牌橫幅`}
+                fill
+                sizes="(min-width: 1280px) 1280px, 100vw"
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          ) : null}
+
+          <div
+            className={`grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end ${
+              bannerUrl ? "mt-0" : "mt-8"
+            }`}
+          >
             <div>
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
                 {company.logo_url ? (
