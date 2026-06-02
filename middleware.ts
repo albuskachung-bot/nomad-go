@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isPrimaryAdminEmail } from "@/lib/admin-auth";
+import { isAdminRole } from "@/lib/admin-auth";
 import type { Database } from "@/lib/types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,6 +8,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type ProfileGate = {
   is_banned: boolean;
+  role?: string | null;
 };
 
 function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string) {
@@ -134,13 +135,35 @@ export async function middleware(request: NextRequest) {
         throw userError;
       }
 
-      if (isPrimaryAdminEmail(user?.email)) {
+      if (!user) {
+        return redirectWithCookies(request, supabaseResponse, "/admin/login");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role,is_banned")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (!profile) {
+        return redirectWithCookies(request, supabaseResponse, "/admin/login");
+      }
+
+      if (profile.is_banned) {
+        return redirectWithCookies(request, supabaseResponse, "/account-banned");
+      }
+
+      if (isAdminRole(profile.role)) {
         return supabaseResponse;
       }
 
       return redirectWithCookies(request, supabaseResponse, "/");
     } catch (error) {
-      console.error("[middleware] Failed to verify admin email. Fail-closed for admin route.", error);
+      console.error("[middleware] Failed to verify admin role. Fail-closed for admin route.", error);
       return redirectWithCookies(request, supabaseResponse, "/admin/login");
     }
   }

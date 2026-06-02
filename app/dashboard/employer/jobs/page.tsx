@@ -15,6 +15,8 @@ import {
   Trash2,
   XCircle
 } from "lucide-react";
+import { publishJob } from "@/app/dashboard/employer/jobs/actions";
+import EmployerPaywallModal from "@/components/billing/EmployerPaywallModal";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type { CompanyApprovalStatus, Job } from "@/lib/types";
@@ -145,6 +147,7 @@ export default function EmployerJobsPage() {
   const [workspace, setWorkspace] = useState<WorkspaceState>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const approvalStatus = workspace?.approvalStatus ?? null;
   const canPublishJobs = approvalStatus === "approved";
@@ -246,109 +249,42 @@ export default function EmployerJobsPage() {
     event.preventDefault();
     const form = event.currentTarget;
 
-    if (!supabase) {
-      setToast({
-        type: "error",
-        message: "尚未設定 Supabase 環境變數，無法新增職缺。"
-      });
-      return;
-    }
-
     const formData = new FormData(form);
-    const category = formData.get("category")?.toString().trim() || "其他 (Other)";
-    const experienceLevel =
-      formData.get("experience_level")?.toString().trim() || "中階 (Mid-Level)";
-    const employmentType =
-      formData.get("employment_type")?.toString().trim() || "全職 (Full-time)";
-    const responsibilities = formData.get("responsibilities")?.toString().trim() ?? "";
-    const requirements = formData.get("requirements")?.toString().trim() ?? "";
-    const niceToHaves = formData.get("nice_to_haves")?.toString().trim() ?? "";
-    const benefits = formData.get("benefits")?.toString().trim() ?? "";
-    const description = [
-      ["工作職責", responsibilities],
-      ["必備條件", requirements],
-      ["加分條件", niceToHaves],
-      ["公司福利", benefits]
-    ]
-      .filter(([, value]) => value.length > 0)
-      .map(([label, value]) => `## ${label}\n\n${value}`)
-      .join("\n\n");
-    const tags = formData
-      .get("tags")
-      ?.toString()
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean) ?? [];
+
+    formData.delete("screening_questions");
+
     const cleanedScreeningQuestions = screeningQuestions
       .map((question) => question.trim())
       .filter(Boolean)
       .slice(0, 3);
 
+    cleanedScreeningQuestions.forEach((question) => {
+      formData.append("screening_questions", question);
+    });
+
     try {
       setIsSubmitting(true);
+      setToast(null);
 
-      const {
-        data: { user },
-        error: userError
-      } = await supabase.auth.getUser();
+      const result = await publishJob(formData);
 
-      if (userError || !user) {
-        throw userError ?? new Error("尚未登入。");
-      }
-
-      const workspaceResult = await getEmployerWorkspaceContext(supabase, user.id);
-
-      if (workspaceResult.error) {
-        throw new Error(workspaceResult.error);
-      }
-
-      if (!workspaceResult.context?.company) {
-        throw new Error("請先建立公司品牌資料，再新增職缺。");
-      }
-
-      const currentCompany = workspaceResult.context.company;
-
-      if (currentCompany.approval_status !== "approved") {
-        throw new Error(getPublishLockMessage(currentCompany.approval_status));
-      }
-
-      const { error } = await supabase.from("jobs").insert({
-        employer_id: currentCompany.employer_id,
-        company_id: currentCompany.id,
-        title: formData.get("title")?.toString().trim() ?? "",
-        company: formData.get("company")?.toString().trim() || currentCompany.name || "未命名公司",
-        location: formData.get("location")?.toString().trim() ?? "",
-        job_type: employmentType,
-        category,
-        experience_level: experienceLevel,
-        employment_type: employmentType,
-        salary_range: formData.get("salary_range")?.toString().trim() || null,
-        tags,
-        description,
-        responsibilities,
-        requirements,
-        nice_to_haves: niceToHaves,
-        benefits,
-        screening_questions: cleanedScreeningQuestions,
-        apply_url: null,
-        is_featured: false,
-        rejection_reason: null,
-        status: "pending"
-      });
-
-      if (error) {
-        if (isSchemaNotReadyError(error)) {
-          throw new Error("資料庫結構尚未更新，請先執行 Supabase company workspace schema。");
+      if (!result.ok) {
+        if (result.reason === "job_limit_reached") {
+          setIsPaywallOpen(true);
         }
 
-        throw error;
+        setToast({
+          type: "error",
+          message: result.message
+        });
+        return;
       }
 
       form.reset();
       setScreeningQuestions([""]);
       setToast({
         type: "success",
-        message: "職缺已送出審核。"
+        message: result.message
       });
       await fetchJobs();
       router.refresh();
@@ -378,6 +314,12 @@ export default function EmployerJobsPage() {
           {toast.message}
         </div>
       ) : null}
+
+      <EmployerPaywallModal
+        open={isPaywallOpen}
+        variant="jobs"
+        onClose={() => setIsPaywallOpen(false)}
+      />
 
       <section>
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">

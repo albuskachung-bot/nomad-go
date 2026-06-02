@@ -10,13 +10,19 @@ import {
   FileText,
   HelpCircle,
   Loader2,
+  LockKeyhole,
   Mail,
   StickyNote,
+  UnlockKeyhole,
   UserRound,
   X,
   XCircle
 } from "lucide-react";
-import { updateEmployerApplicationReview } from "@/app/dashboard/employer/applicants/actions";
+import {
+  unlockApplicant,
+  updateEmployerApplicationReview
+} from "@/app/dashboard/employer/applicants/actions";
+import EmployerPaywallModal from "@/components/billing/EmployerPaywallModal";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type {
@@ -32,6 +38,7 @@ type ApplicantRow = {
   job: Job;
   profile: Profile | null;
   applicantEmail: string | null;
+  contactUnlocked: boolean;
   companyName: string;
 };
 
@@ -142,6 +149,91 @@ function getScreeningAnswerPairs(row: ApplicantRow) {
   }));
 }
 
+function ApplicantEmailCell({
+  row,
+  isPending,
+  onUnlock
+}: {
+  row: ApplicantRow;
+  isPending: boolean;
+  onUnlock: () => void;
+}) {
+  if (row.contactUnlocked) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700">
+        <Mail className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+        {row.applicantEmail ?? "Email unavailable"}
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="inline-flex min-w-[150px] items-center gap-1.5 text-sm font-medium text-slate-500">
+        <LockKeyhole className="h-4 w-4 text-slate-400" aria-hidden="true" />
+        <span className="select-none blur-sm">talent@example.com</span>
+      </span>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onUnlock();
+        }}
+        disabled={isPending}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70"
+      >
+        {isPending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <UnlockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        解鎖
+      </button>
+    </div>
+  );
+}
+
+function ApplicantEmailInline({
+  row,
+  isPending,
+  onUnlock
+}: {
+  row: ApplicantRow;
+  isPending: boolean;
+  onUnlock: () => void;
+}) {
+  if (row.contactUnlocked) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Mail className="h-4 w-4" aria-hidden="true" />
+        {row.applicantEmail ?? "Email unavailable"}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-1.5">
+        <LockKeyhole className="h-4 w-4" aria-hidden="true" />
+        <span className="select-none blur-sm">talent@example.com</span>
+      </span>
+      <button
+        type="button"
+        onClick={onUnlock}
+        disabled={isPending}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70"
+      >
+        {isPending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <UnlockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        解鎖聯絡方式
+      </button>
+    </span>
+  );
+}
+
 export default function EmployerApplicantsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ApplicantRow[]>([]);
@@ -151,6 +243,7 @@ export default function EmployerApplicantsPage() {
   const [draftNotes, setDraftNotes] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
 
   const fetchApplicants = useCallback(async () => {
@@ -287,7 +380,8 @@ export default function EmployerApplicantsPage() {
               application,
               job,
               profile: profilesById.get(application.user_id) ?? null,
-              applicantEmail: application.applicant_email ?? null,
+              applicantEmail: application.contact_unlocked ? application.applicant_email ?? null : null,
+              contactUnlocked: Boolean(application.contact_unlocked),
               companyName: workspaceCompanyName ?? job.company ?? "未命名公司"
             };
           })
@@ -381,6 +475,52 @@ export default function EmployerApplicantsPage() {
     }
   }
 
+  async function handleUnlockApplicant(row: ApplicantRow) {
+    setPendingKey(`unlock:${row.application.id}`);
+    setToast(null);
+
+    const formData = new FormData();
+    formData.set("application_id", row.application.id);
+
+    const result = await unlockApplicant(formData);
+
+    setPendingKey(null);
+
+    if (!result.ok) {
+      if (result.reason === "unlock_limit_reached") {
+        setIsPaywallOpen(true);
+      }
+
+      setToast({
+        type: "error",
+        message: result.message
+      });
+      return;
+    }
+
+    const updatedRow: ApplicantRow = {
+      ...row,
+      applicantEmail: result.applicantEmail,
+      contactUnlocked: true
+    };
+
+    setRows((currentRows) =>
+      currentRows.map((currentRow) =>
+        currentRow.application.id === row.application.id ? updatedRow : currentRow
+      )
+    );
+
+    setSelectedRow((currentSelectedRow) =>
+      currentSelectedRow?.application.id === row.application.id ? updatedRow : currentSelectedRow
+    );
+
+    setToast({
+      type: "success",
+      message: result.message
+    });
+    router.refresh();
+  }
+
   async function handleReviewSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -440,6 +580,12 @@ export default function EmployerApplicantsPage() {
         </div>
       ) : null}
 
+      <EmployerPaywallModal
+        open={isPaywallOpen}
+        variant="applicants"
+        onClose={() => setIsPaywallOpen(false)}
+      />
+
       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -489,10 +635,11 @@ export default function EmployerApplicantsPage() {
 
       <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-6 py-4">人才</th>
+                <th className="px-6 py-4">Email</th>
                 <th className="px-6 py-4">應徵職缺</th>
                 <th className="px-6 py-4">狀態</th>
                 <th className="px-6 py-4">投遞時間</th>
@@ -530,6 +677,13 @@ export default function EmployerApplicantsPage() {
                           </div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <ApplicantEmailCell
+                        row={row}
+                        isPending={pendingKey === `unlock:${row.application.id}`}
+                        onUnlock={() => handleUnlockApplicant(row)}
+                      />
                     </td>
                     <td className="px-6 py-5 text-gray-600">{row.job.title}</td>
                     <td className="px-6 py-5">
@@ -603,10 +757,11 @@ export default function EmployerApplicantsPage() {
                       <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
                       {selectedRow.job.title}
                     </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Mail className="h-4 w-4" aria-hidden="true" />
-                      {selectedRow.applicantEmail ?? "尚未取得求職者信箱"}
-                    </span>
+                    <ApplicantEmailInline
+                      row={selectedRow}
+                      isPending={pendingKey === `unlock:${selectedRow.application.id}`}
+                      onUnlock={() => handleUnlockApplicant(selectedRow)}
+                    />
                   </div>
                 </div>
               </div>
@@ -762,6 +917,9 @@ function LoadingRows() {
           </td>
           <td className="px-6 py-5">
             <div className="h-4 w-44 rounded bg-gray-100" />
+          </td>
+          <td className="px-6 py-5">
+            <div className="h-4 w-36 rounded bg-gray-100" />
           </td>
           <td className="px-6 py-5">
             <div className="h-6 w-20 rounded-full bg-gray-100" />

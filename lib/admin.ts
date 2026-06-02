@@ -1,8 +1,11 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isAdminRole, isGoogleUser, isPrimaryAdminEmail } from "@/lib/admin-auth";
+import { isAdminRole, isGoogleUser } from "@/lib/admin-auth";
 import type { Profile } from "@/lib/types";
 
 export async function getCurrentAdminContext() {
+  noStore();
+
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
@@ -39,8 +42,7 @@ export async function getCurrentAdminContext() {
 
   const typedProfile = profile as Profile | null;
   const role = typedProfile?.role ?? null;
-  const primaryAdmin = isPrimaryAdminEmail(user.email);
-  const admin = primaryAdmin || isAdminRole(role);
+  const admin = isAdminRole(role);
 
   return {
     supabase,
@@ -48,6 +50,6 @@ export async function getCurrentAdminContext() {
     profile: typedProfile,
     isGoogle: isGoogleUser(user),
     isAdmin: admin,
-    isSuperAdmin: primaryAdmin || role === "super_admin"
+    isSuperAdmin: role === "super_admin"
   };
 }

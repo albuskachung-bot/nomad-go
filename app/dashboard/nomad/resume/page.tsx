@@ -1,6 +1,10 @@
+import { getUsageQuotaSnapshot } from "@/app/dashboard/nomad/usage/actions";
+import NomadAiUsageCard from "@/components/dashboard/NomadAiUsageCard";
 import ProfileEditForm from "@/components/ProfileEditForm";
 
-export default function MemberResumePage() {
+export default async function MemberResumePage() {
+  const quotaSnapshot = await getUsageQuotaSnapshot();
+
   return (
     <div>
       <div className="mb-6">
@@ -13,6 +17,10 @@ export default function MemberResumePage() {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">
           維護你的個人資料、工作偏好與作品連結，讓未來的媒合、收藏與應徵流程都能共用這份會員履歷。
         </p>
+      </div>
+
+      <div className="mb-6">
+        <NomadAiUsageCard initialQuota={quotaSnapshot} />
       </div>
 
       <ProfileEditForm />

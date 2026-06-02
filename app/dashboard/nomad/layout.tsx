@@ -9,6 +9,7 @@ import {
   Bookmark,
   Briefcase,
   CreditCard,
+  FileText,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -62,6 +63,12 @@ const navItems: NavItem[] = [
     label: "訊息中心",
     helper: "Messages",
     icon: MessageSquareText
+  },
+  {
+    href: "/dashboard/nomad/posts",
+    label: "我的專欄",
+    helper: "Nomad Column",
+    icon: FileText
   },
   {
     href: "/dashboard/nomad/billing",

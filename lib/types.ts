@@ -105,6 +105,8 @@ export type Profile = {
   is_public?: boolean;
   subscription_plan?: TalentSubscriptionPlan;
   plan_expires_at?: string | null;
+  free_ai_usage_count?: number;
+  quota_reset_date?: string | null;
   sponsored_until: string | null;
   stripe_customer_id: string | null;
   created_at: string;
@@ -134,6 +136,10 @@ export type Company = {
   verification_doc_url: string | null;
   subscription_plan?: CompanySubscriptionPlan;
   plan_expires_at?: string | null;
+  max_active_jobs?: number;
+  unlocked_applicants_count?: number;
+  free_unlock_limit?: number;
+  applicant_unlock_reset_date?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -196,6 +202,19 @@ export type Talent = {
   updated_at: string;
 };
 
+export type Post = {
+  id: string;
+  author_id: string;
+  title: string;
+  slug: string;
+  content: string;
+  tags: string[];
+  cover_image_url: string | null;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SiteSettings = {
   id: number;
   hero_title: string;
@@ -210,6 +229,15 @@ export type PlatformSetting = {
   key_name: string;
   key_value: string;
   updated_at: string;
+};
+
+export type UsageQuotaRpcRow = {
+  allowed: boolean;
+  reason: string | null;
+  usage_count: number;
+  free_limit: number;
+  reset_date: string | null;
+  subscription_plan: TalentSubscriptionPlan;
 };
 
 export type OrderStatus = "pending" | "paid" | "failed";
@@ -263,6 +291,22 @@ export type Message = {
 
 export type CompanyApplicationWithNotes = Application & {
   applicant_email: string | null;
+  contact_unlocked?: boolean;
+};
+
+export type EmployerApplicantUnlockRpcRow = {
+  allowed: boolean;
+  reason: string | null;
+  application_id: string | null;
+  applicant_id: string | null;
+  applicant_email: string | null;
+  unlocked_count: number;
+  unlock_limit: number;
+  reset_date: string | null;
+  subscription_plan: CompanySubscriptionPlan;
+  already_unlocked: boolean;
+  portfolio_url: string | null;
+  social_urls: Record<string, string>;
 };
 
 export type Database = {
@@ -350,6 +394,16 @@ export type Database = {
         Update: Partial<Talent>;
         Relationships: [];
       };
+      posts: {
+        Row: Post;
+        Insert: Omit<Post, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Post>;
+        Relationships: [];
+      };
       tools: {
         Row: Tool;
         Insert: Omit<Tool, "id" | "created_at"> & {
@@ -435,11 +489,21 @@ export type Database = {
         };
         Returns: CompanyApplicationWithNotes[];
       };
+      unlock_company_applicant: {
+        Args: {
+          target_application_id: string;
+        };
+        Returns: EmployerApplicantUnlockRpcRow[];
+      };
       get_company_team_members: {
         Args: {
           target_company_id: string;
         };
         Returns: CompanyTeamMember[];
+      };
+      consume_ai_usage_quota: {
+        Args: Record<PropertyKey, never>;
+        Returns: UsageQuotaRpcRow[];
       };
       set_admin_role_by_email: {
         Args: {

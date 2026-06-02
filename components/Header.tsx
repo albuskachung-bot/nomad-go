@@ -15,6 +15,7 @@ const navItems = [
   { href: "/jobs", label: "遠端職缺" },
   { href: "/companies", label: "企業" },
   { href: "/talent", label: "人才自薦" },
+  { href: "/blog", label: "遊牧專欄" },
   { href: "/pricing", label: "方案" },
   { href: "/toolkit", label: "實用工具" }
 ];

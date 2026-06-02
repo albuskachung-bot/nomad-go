@@ -1,4 +1,9 @@
+import { redirect } from "next/navigation";
 import { Banknote, Bot, Briefcase, Users } from "lucide-react";
+import { getCurrentAdminContext } from "@/lib/admin";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const operationalCards = [
   {
@@ -35,7 +40,17 @@ const operationalCards = [
   }
 ];
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  const { user, isAdmin } = await getCurrentAdminContext();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  if (!isAdmin) {
+    redirect("/");
+  }
+
   return (
     <div className="space-y-8">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
