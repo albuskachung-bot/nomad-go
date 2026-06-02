@@ -132,6 +132,9 @@ create table if not exists public.site_settings (
   hero_image_url text not null default 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=85',
   announcement_text text,
   announcement_enabled boolean not null default false,
+  footer_description text not null default '為華語遠端工作者整理職缺、城市情報與出發工具，讓每一次移動都更有掌握。',
+  contact_email text not null default 'hello@nomad-go.example',
+  social_links jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
 
@@ -265,6 +268,9 @@ alter table public.site_settings add column if not exists hero_subtitle text not
 alter table public.site_settings add column if not exists hero_image_url text not null default 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=85';
 alter table public.site_settings add column if not exists announcement_text text;
 alter table public.site_settings add column if not exists announcement_enabled boolean not null default false;
+alter table public.site_settings add column if not exists footer_description text not null default '為華語遠端工作者整理職缺、城市情報與出發工具，讓每一次移動都更有掌握。';
+alter table public.site_settings add column if not exists contact_email text not null default 'hello@nomad-go.example';
+alter table public.site_settings add column if not exists social_links jsonb not null default '{}'::jsonb;
 
 alter table public.site_settings drop constraint if exists site_settings_singleton_check;
 do $$
@@ -768,6 +774,7 @@ drop policy if exists companies_public_read on public.companies;
 drop policy if exists companies_employer_manage_own on public.companies;
 drop policy if exists applications_employer_read on public.applications;
 drop policy if exists site_settings_admin_manage on public.site_settings;
+drop policy if exists site_settings_super_admin_update on public.site_settings;
 drop policy if exists platform_settings_super_admin_select on public.platform_settings;
 drop policy if exists platform_settings_super_admin_insert on public.platform_settings;
 drop policy if exists platform_settings_super_admin_update on public.platform_settings;
@@ -1086,13 +1093,13 @@ begin
     select 1 from pg_policies
     where schemaname = 'public'
       and tablename = 'site_settings'
-      and policyname = 'site_settings_admin_manage'
+      and policyname = 'site_settings_super_admin_update'
   ) then
-    create policy site_settings_admin_manage
+    create policy site_settings_super_admin_update
       on public.site_settings for update
       to authenticated
-      using (public.can_manage_site_settings())
-      with check (public.can_manage_site_settings());
+      using (coalesce(public.current_profile_role() = 'super_admin', false))
+      with check (coalesce(public.current_profile_role() = 'super_admin', false));
   end if;
 
   if not exists (
@@ -1217,19 +1224,31 @@ insert into public.site_settings (
   hero_subtitle,
   hero_image_url,
   announcement_text,
-  announcement_enabled
+  announcement_enabled,
+  footer_description,
+  contact_email,
+  social_links
 ) values (
   1,
   'NOMAD-GO 遊牧出發',
   '整合遠端職缺、城市指南、工具清單與人才推薦，幫助華語工作者用更清楚的資訊開始全球移動。',
   'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=85',
   'NOMAD-GO 遊牧出發 beta 開放中，歡迎加入華語數位遊牧社群。',
-  false
+  false,
+  '為華語遠端工作者整理職缺、城市情報與出發工具，讓每一次移動都更有掌握。',
+  'hello@nomad-go.example',
+  jsonb_build_object(
+    'instagram', '',
+    'threads', ''
+  )
 )
 on conflict (id) do update
 set hero_title = excluded.hero_title,
     hero_subtitle = excluded.hero_subtitle,
     hero_image_url = excluded.hero_image_url,
+    footer_description = coalesce(public.site_settings.footer_description, excluded.footer_description),
+    contact_email = coalesce(public.site_settings.contact_email, excluded.contact_email),
+    social_links = coalesce(public.site_settings.social_links, excluded.social_links),
     updated_at = now();
 
 insert into public.tools (

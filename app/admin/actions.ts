@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import type { User } from "@supabase/supabase-js";
 import { canManageSiteSettings, isAdminRole, type AdminRole } from "@/lib/admin-auth";
 import { getCurrentAdminContext } from "@/lib/admin";
@@ -306,7 +306,7 @@ export async function updateSiteSettings(formData: FormData) {
   if (!canManageSiteSettings(profile?.role)) {
     return {
       ok: false,
-      message: "只有 Super Admin 或 Editor 可以更新全站設定。"
+      message: "只有 Super Admin 可以更新全站設定。"
     };
   }
 
@@ -372,6 +372,50 @@ export async function updateSiteSettings(formData: FormData) {
   return {
     ok: true,
     message: "首頁設定已更新。"
+  };
+}
+
+export async function updateFooterSettings(formData: FormData): Promise<ActionResult> {
+  const context = await requireSuperAdmin();
+  const footerDescription = formData.get("footer_description")?.toString().trim();
+  const contactEmail = formData.get("contact_email")?.toString().trim().toLowerCase();
+  const socialLinks = {
+    instagram: formData.get("social_instagram")?.toString().trim() ?? "",
+    threads: formData.get("social_threads")?.toString().trim() ?? "",
+    linkedin: formData.get("social_linkedin")?.toString().trim() ?? "",
+    facebook: formData.get("social_facebook")?.toString().trim() ?? ""
+  };
+
+  if (!footerDescription || !contactEmail || !isValidEmail(contactEmail)) {
+    return {
+      ok: false,
+      message: "請填寫 Footer 文案與有效的聯絡信箱。"
+    };
+  }
+
+  const { error } = await context.supabase
+    .from("site_settings")
+    .update({
+      footer_description: footerDescription,
+      contact_email: contactEmail,
+      social_links: socialLinks
+    })
+    .eq("id", 1);
+
+  if (error) {
+    return {
+      ok: false,
+      message: error.message
+    };
+  }
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
+  revalidateTag("site-settings");
+
+  return {
+    ok: true,
+    message: "Footer 設定已更新。"
   };
 }
 

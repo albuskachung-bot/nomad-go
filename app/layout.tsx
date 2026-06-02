@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AppChrome from "@/components/AppChrome";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "NOMAD-GO 遊牧出發",
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="zh-Hant">
       <body className="min-h-screen bg-white font-sans text-gray-900 antialiased">
-        <AppChrome>{children}</AppChrome>
+        <AppChrome footer={<Footer />}>{children}</AppChrome>
       </body>
     </html>
   );

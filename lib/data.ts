@@ -282,6 +282,13 @@ export const mockSiteSettings: SiteSettings = {
     "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=85",
   announcement_text: "NOMAD-GO beta 開放中，歡迎加入華語數位遊牧社群。",
   announcement_enabled: true,
+  footer_description:
+    "為華語遠端工作者整理職缺、城市情報與出發工具，讓每一次移動都更有掌握。",
+  contact_email: "hello@nomad-go.example",
+  social_links: {
+    instagram: "",
+    threads: ""
+  },
   updated_at: "2026-05-12T08:00:00.000Z"
 };
 

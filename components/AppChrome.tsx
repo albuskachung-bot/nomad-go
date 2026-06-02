@@ -2,9 +2,14 @@
 
 import { usePathname } from "next/navigation";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 
-export default function AppChrome({ children }: { children: React.ReactNode }) {
+export default function AppChrome({
+  children,
+  footer
+}: {
+  children: React.ReactNode;
+  footer: React.ReactNode;
+}) {
   const pathname = usePathname();
   const isAdminRoute = pathname.startsWith("/admin");
   const isDashboardRoute = pathname.startsWith("/dashboard");
@@ -17,7 +22,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
     <>
       <Header />
       <main>{children}</main>
-      <Footer />
+      {footer}
     </>
   );
 }

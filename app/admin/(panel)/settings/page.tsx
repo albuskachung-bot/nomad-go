@@ -41,7 +41,7 @@ export default async function AdminSettingsPage() {
           </div>
         </div>
         <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-500">
-          此頁面僅限 Super Admin 或 Editor 修改。Reviewer 可管理審核流程，但不能變更首頁內容與品牌素材。
+          此頁面僅限 Super Admin 修改。Reviewer 與 Editor 可依職責管理內容流程，但不能變更全站品牌、Footer 與聯絡資訊。
         </p>
       </div>
     );
@@ -61,7 +61,7 @@ export default async function AdminSettingsPage() {
             全站設定 CMS
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-            修改首頁 Hero 文案與背景圖片。圖片會上傳到 Supabase Storage 的 public-assets bucket。
+            修改首頁 Hero 文案、背景圖片、Footer 平台簡介、聯絡信箱與社群連結。圖片會上傳到 Supabase Storage 的 public-assets bucket。
           </p>
         </div>
       </div>

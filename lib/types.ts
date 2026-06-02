@@ -222,6 +222,9 @@ export type SiteSettings = {
   hero_image_url: string;
   announcement_text: string | null;
   announcement_enabled: boolean;
+  footer_description: string;
+  contact_email: string;
+  social_links: Record<string, string>;
   updated_at: string;
 };
 

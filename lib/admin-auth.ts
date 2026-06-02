@@ -19,7 +19,7 @@ export function isProfileRole(role: string | null | undefined): role is ProfileR
 }
 
 export function canManageSiteSettings(role: ProfileRole | null | undefined) {
-  return role === "super_admin" || role === "editor";
+  return role === "super_admin";
 }
 
 export function isGoogleUser(user: User | null | undefined) {

@@ -202,8 +202,9 @@ create policy talents_admin_manage
   with check (public.can_manage_site_settings());
 
 drop policy if exists site_settings_admin_manage on public.site_settings;
-create policy site_settings_admin_manage
+drop policy if exists site_settings_super_admin_update on public.site_settings;
+create policy site_settings_super_admin_update
   on public.site_settings for update
   to authenticated
-  using (public.can_manage_site_settings())
-  with check (public.can_manage_site_settings());
+  using (coalesce(public.current_profile_role() = 'super_admin', false))
+  with check (coalesce(public.current_profile_role() = 'super_admin', false));
