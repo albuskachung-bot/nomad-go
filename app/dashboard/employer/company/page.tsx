@@ -1,15 +1,17 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   Clock3,
   FileText,
   ImageUp,
   Loader2,
+  Plus,
   Save,
   ShieldCheck,
   UploadCloud,
+  X,
   XCircle
 } from "lucide-react";
 import { saveEmployerCompanyProfile } from "@/app/dashboard/employer/company/actions";
@@ -134,6 +136,10 @@ function formatPerksTags(tags: string[] | null | undefined) {
   return tags?.join(", ") ?? "";
 }
 
+function normalizeTags(tags: string[] | null | undefined) {
+  return tags?.filter(Boolean) ?? [];
+}
+
 export default function EmployerCompanyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +147,8 @@ export default function EmployerCompanyPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  const [techStack, setTechStack] = useState<string[]>([]);
+  const [teamLocations, setTeamLocations] = useState<string[]>([]);
   const [verificationDocPath, setVerificationDocPath] = useState("");
   const [canManageCompany, setCanManageCompany] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -189,6 +197,8 @@ export default function EmployerCompanyPage() {
         setCompany(null);
         setLogoUrl("");
         setBannerUrl("");
+        setTechStack([]);
+        setTeamLocations([]);
         setVerificationDocPath("");
         setCanManageCompany(true);
         return;
@@ -197,6 +207,8 @@ export default function EmployerCompanyPage() {
       setCompany((workspaceResult.context.company as Company | null) ?? null);
       setLogoUrl(workspaceResult.context.company.logo_url ?? "");
       setBannerUrl(workspaceResult.context.company.banner_url ?? "");
+      setTechStack(normalizeTags(workspaceResult.context.company.tech_stack));
+      setTeamLocations(normalizeTags(workspaceResult.context.company.team_locations));
       setVerificationDocPath(workspaceResult.context.company.verification_doc_url ?? "");
       setCanManageCompany(workspaceResult.context.canManageCompany);
     } catch (error) {
@@ -205,6 +217,8 @@ export default function EmployerCompanyPage() {
         setCompany(null);
         setLogoUrl("");
         setBannerUrl("");
+        setTechStack([]);
+        setTeamLocations([]);
         setVerificationDocPath("");
         setCanManageCompany(true);
         return;
@@ -437,6 +451,8 @@ export default function EmployerCompanyPage() {
     const formData = new FormData(event.currentTarget);
     formData.set("logo_url", logoUrl);
     formData.set("banner_url", bannerUrl);
+    formData.set("tech_stack", techStack.join(","));
+    formData.set("team_locations", teamLocations.join(","));
     formData.set("verification_doc_url", verificationDocPath);
 
     try {
@@ -638,6 +654,50 @@ export default function EmployerCompanyPage() {
                       </span>
                     </label>
                   </div>
+
+                  <div className="border-t border-gray-100 pt-5">
+                    <p className="text-sm font-semibold text-gray-900">
+                      遠距文化展廳
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-gray-500">
+                      補充團隊日常、協作工具與成員分布，讓求職者更快理解你的遠距工作文化。
+                    </p>
+
+                    <div className="mt-4 grid gap-5">
+                      <TagInput
+                        label="技術 / 工具牆"
+                        value={techStack}
+                        onChange={setTechStack}
+                        placeholder="例如：Slack, Notion, Figma, Linear"
+                        disabled={!canManageCompany}
+                      />
+
+                      <TagInput
+                        label="團隊分布"
+                        value={teamLocations}
+                        onChange={setTeamLocations}
+                        placeholder="例如：台北, 新加坡, 東京, Remote"
+                        disabled={!canManageCompany}
+                      />
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-gray-900">
+                          文化影片連結
+                        </span>
+                        <input
+                          name="culture_video_url"
+                          type="url"
+                          defaultValue={company?.culture_video_url ?? ""}
+                          placeholder="https://www.youtube.com/watch?v=..."
+                          disabled={!canManageCompany}
+                          className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition placeholder:text-gray-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                        />
+                        <span className="mt-2 block text-xs leading-5 text-gray-500">
+                          💡 貼上 YouTube 影片連結，讓求職者更了解您的團隊日常
+                        </span>
+                      </label>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -814,6 +874,103 @@ export default function EmployerCompanyPage() {
           儲存公司資料
         </button>
       </form>
+    </div>
+  );
+}
+
+function TagInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  disabled
+}: {
+  label: string;
+  value: string[];
+  onChange: (value: string[]) => void;
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function addTags(rawValue: string) {
+    const nextTags = rawValue
+      .split(/[、,，\n]/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    if (nextTags.length === 0) {
+      return;
+    }
+
+    onChange(Array.from(new Set([...value, ...nextTags])));
+    setDraft("");
+  }
+
+  function removeTag(tag: string) {
+    onChange(value.filter((item) => item !== tag));
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" && event.key !== ",") {
+      return;
+    }
+
+    event.preventDefault();
+    addTags(draft);
+  }
+
+  return (
+    <div>
+      <label className="block">
+        <span className="text-sm font-medium text-gray-900">{label}</span>
+        <div className="mt-2 flex gap-2">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => addTags(draft)}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition placeholder:text-gray-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+          />
+          <button
+            type="button"
+            onClick={() => addTags(draft)}
+            disabled={disabled || !draft.trim()}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={`新增${label}`}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </label>
+
+      {value.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {value.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => removeTag(tag)}
+                disabled={disabled}
+                className="rounded-full p-0.5 text-slate-500 transition hover:bg-white hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={`移除${tag}`}
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-gray-500">
+          輸入後按 Enter 或點擊新增，可加入多個標籤。
+        </p>
+      )}
     </div>
   );
 }

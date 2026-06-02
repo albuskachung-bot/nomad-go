@@ -141,7 +141,7 @@ export async function saveNomadProfile(
 
     return {
       ok: true,
-      message: "履歷已更新。"
+      message: "履歷資料已成功儲存！"
     };
   } catch (error) {
     console.error("[nomad-resume] Failed to save profile.", error);

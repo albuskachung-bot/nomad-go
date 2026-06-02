@@ -141,6 +141,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
             jobId={job.id}
             jobTitle={job.title}
             companyName={company?.name ?? job.company}
+            screeningQuestions={job.screening_questions}
           />
         </aside>
       </div>

@@ -159,10 +159,10 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
                         {job.location}
                       </span>
                     </div>
-                    <p className="mt-4 max-w-3xl text-sm leading-6 text-gray-500">
+                    <p className="mt-4 mb-4 line-clamp-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600">
                       {job.description}
                     </p>
-                    <div className="mt-5 flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {job.tags.map((tag) => (
                         <span
                           key={tag}

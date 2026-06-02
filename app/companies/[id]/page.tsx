@@ -9,9 +9,11 @@ import {
   Building2,
   Globe2,
   MapPin,
+  PlayCircle,
   Sparkles,
   Users,
-  Wifi
+  Wifi,
+  Wrench
 } from "lucide-react";
 import {
   getApprovedCompanyProfile,
@@ -26,6 +28,44 @@ type CompanyDetailPageProps = {
 };
 
 export const dynamic = "force-dynamic";
+
+function getCultureVideoEmbedUrl(videoUrl: string | null | undefined) {
+  const trimmedUrl = videoUrl?.trim();
+
+  if (!trimmedUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmedUrl);
+    const hostname = url.hostname.replace(/^www\./, "");
+
+    if (hostname === "youtu.be") {
+      const videoId = url.pathname.split("/").filter(Boolean)[0];
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    }
+
+    if (hostname === "youtube.com" || hostname === "m.youtube.com") {
+      if (url.pathname === "/watch") {
+        const videoId = url.searchParams.get("v");
+        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+      }
+
+      if (url.pathname.startsWith("/shorts/")) {
+        const videoId = url.pathname.split("/").filter(Boolean)[1];
+        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+      }
+
+      if (url.pathname.startsWith("/embed/")) {
+        return url.toString();
+      }
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 export async function generateMetadata({
   params
@@ -59,6 +99,9 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
   const remotePolicy =
     company.remote_policy ?? "此企業尚未補充遠距政策，請參考下方職缺內容或後續面談資訊。";
   const bannerUrl = company.banner_url?.trim();
+  const cultureVideoEmbedUrl = getCultureVideoEmbedUrl(company.culture_video_url);
+  const techStack = company.tech_stack ?? [];
+  const teamLocations = company.team_locations ?? [];
 
   return (
     <div className="bg-gray-50">
@@ -154,6 +197,26 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
             </p>
           </section>
 
+          {cultureVideoEmbedUrl ? (
+            <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
+              <div className="flex items-center gap-2">
+                <PlayCircle className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+                  團隊文化影片
+                </h2>
+              </div>
+              <div className="mt-5 aspect-video overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200">
+                <iframe
+                  src={cultureVideoEmbedUrl}
+                  title={`${company.name} 團隊文化影片`}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            </section>
+          ) : null}
+
           <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
             <div className="flex items-center gap-2">
               <Wifi className="h-5 w-5 text-blue-600" aria-hidden="true" />
@@ -163,6 +226,66 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
             </div>
             <p className="mt-5 text-base leading-8 text-gray-600">{remotePolicy}</p>
           </section>
+
+          {(techStack.length > 0 || teamLocations.length > 0) ? (
+            <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
+              <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+                遠距文化展廳
+              </h2>
+              <div className="mt-6 grid gap-7 md:grid-cols-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Wrench className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      技術 / 工具牆
+                    </h3>
+                  </div>
+                  {techStack.length > 0 ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {techStack.map((tool) => (
+                        <span
+                          key={tool}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+                        >
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm leading-6 text-gray-500">
+                      此企業尚未補充常用協作工具。
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Globe2 className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      團隊分布
+                    </h3>
+                  </div>
+                  {teamLocations.length > 0 ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {teamLocations.map((location) => (
+                        <span
+                          key={location}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100"
+                        >
+                          <MapPin className="h-3 w-3" aria-hidden="true" />
+                          {location}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm leading-6 text-gray-500">
+                      此企業尚未補充團隊地點分布。
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
             <h2 className="text-2xl font-semibold tracking-normal text-gray-900">

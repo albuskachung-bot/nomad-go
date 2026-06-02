@@ -19,9 +19,9 @@ function readRequiredText(value: FormDataEntryValue | null) {
   return value?.toString().trim() ?? "";
 }
 
-function readPerksTags(value: FormDataEntryValue | null) {
+function readTags(value: FormDataEntryValue | null) {
   return (value?.toString() ?? "")
-    .split(",")
+    .split(/[、,，\n]/)
     .map((tag) => tag.trim())
     .filter(Boolean);
 }
@@ -79,7 +79,10 @@ export async function saveEmployerCompanyProfile(
       company_size: readText(formData.get("company_size")),
       hq_location: readText(formData.get("hq_location")),
       remote_policy: readText(formData.get("remote_policy")),
-      perks_tags: readPerksTags(formData.get("perks_tags")),
+      perks_tags: readTags(formData.get("perks_tags")),
+      tech_stack: readTags(formData.get("tech_stack")),
+      team_locations: readTags(formData.get("team_locations")),
+      culture_video_url: readText(formData.get("culture_video_url")),
       tax_id: readText(formData.get("tax_id")),
       verification_doc_url: readText(formData.get("verification_doc_url"))
     };

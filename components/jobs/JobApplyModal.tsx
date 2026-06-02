@@ -8,6 +8,7 @@ type JobApplyModalProps = {
   jobId: string;
   jobTitle: string;
   companyName: string;
+  screeningQuestions?: string[] | null;
 };
 
 type Toast = {
@@ -37,11 +38,20 @@ function isPdf(file: File) {
   return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 }
 
-export default function JobApplyModal({ jobId, jobTitle, companyName }: JobApplyModalProps) {
+export default function JobApplyModal({
+  jobId,
+  jobTitle,
+  companyName,
+  screeningQuestions = []
+}: JobApplyModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [toast, setToast] = useState<Toast>(null);
+  const activeScreeningQuestions = (screeningQuestions ?? [])
+    .map((question) => question.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 
   useEffect(() => {
     if (!toast) {
@@ -95,6 +105,20 @@ export default function JobApplyModal({ jobId, jobTitle, companyName }: JobApply
       return;
     }
 
+    const formData = new FormData(form);
+    const screeningAnswers = activeScreeningQuestions.map((question, index) => ({
+      question,
+      answer: formData.get(`screening_answer_${index}`)?.toString().trim() ?? ""
+    }));
+
+    if (screeningAnswers.some((item) => item.answer.length === 0)) {
+      setToast({
+        type: "error",
+        message: "請完整回答所有篩選問題後再送出。"
+      });
+      return;
+    }
+
     let uploadedPath: string | null = null;
 
     try {
@@ -124,13 +148,13 @@ export default function JobApplyModal({ jobId, jobTitle, companyName }: JobApply
 
       uploadedPath = filePath;
 
-      const formData = new FormData(form);
       const { error: insertError } = await supabase.from("applications").insert({
         job_id: jobId,
         user_id: user.id,
         status: "pending",
         resume_url: filePath,
-        cover_letter: formData.get("cover_letter")?.toString().trim() || null
+        cover_letter: formData.get("cover_letter")?.toString().trim() || null,
+        screening_answers: screeningAnswers
       });
 
       if (insertError) {
@@ -263,6 +287,35 @@ export default function JobApplyModal({ jobId, jobTitle, companyName }: JobApply
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
               </label>
+
+              {activeScreeningQuestions.length > 0 ? (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                  <p className="text-sm font-semibold text-blue-950">
+                    非同步面試問題
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-blue-800">
+                    企業會優先查看這些回答，請完整作答後再送出應徵。
+                  </p>
+
+                  <div className="mt-4 space-y-4">
+                    {activeScreeningQuestions.map((question, index) => (
+                      <label key={`${question}-${index}`} className="block">
+                        <span className="text-sm font-medium text-slate-900">
+                          {index + 1}. {question}
+                        </span>
+                        <textarea
+                          name={`screening_answer_${index}`}
+                          rows={4}
+                          required
+                          disabled={isSubmitting}
+                          placeholder="請輸入你的回答。"
+                          className="mt-2 w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <button
                 type="submit"

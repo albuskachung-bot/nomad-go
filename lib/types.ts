@@ -14,6 +14,7 @@ export type Job = {
   requirements: string | null;
   nice_to_haves: string | null;
   benefits: string | null;
+  screening_questions?: string[] | null;
   apply_url: string | null;
   is_featured: boolean;
   employer_id: string | null;
@@ -122,6 +123,9 @@ export type Company = {
   remote_policy?: string | null;
   perks_tags?: string[] | null;
   benefit_tags?: string[] | null;
+  tech_stack?: string[] | null;
+  team_locations?: string[] | null;
+  culture_video_url?: string | null;
   tax_id: string | null;
   verification_doc_url: string | null;
   created_at: string;
@@ -225,6 +229,11 @@ export type SavedItem = {
 
 export type ApplicationStatus = "pending" | "reviewed" | "interview" | "rejected" | "hired";
 
+export type ScreeningAnswer = {
+  question: string;
+  answer: string;
+};
+
 export type Application = {
   id: string;
   user_id: string;
@@ -232,6 +241,7 @@ export type Application = {
   status: ApplicationStatus;
   resume_url: string;
   cover_letter: string | null;
+  screening_answers?: ScreeningAnswer[] | null;
   internal_notes: string | null;
   applied_at: string;
 };

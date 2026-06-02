@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  HelpCircle,
   Loader2,
   Mail,
   StickyNote,
@@ -120,6 +121,27 @@ function getInitial(row: ApplicantRow) {
   return (row.profile?.full_name ?? row.application.user_id).slice(0, 1).toUpperCase();
 }
 
+function getScreeningAnswerPairs(row: ApplicantRow) {
+  const questions = (row.job.screening_questions ?? [])
+    .map((question) => question.trim())
+    .filter(Boolean);
+  const answers = Array.isArray(row.application.screening_answers)
+    ? row.application.screening_answers
+    : [];
+
+  if (answers.length > 0) {
+    return answers.map((item, index) => ({
+      question: item.question?.trim() || questions[index] || `篩選問題 ${index + 1}`,
+      answer: item.answer?.trim() || "求職者未作答。"
+    }));
+  }
+
+  return questions.map((question) => ({
+    question,
+    answer: "此應徵紀錄尚未提供回答。"
+  }));
+}
+
 export default function EmployerApplicantsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ApplicantRow[]>([]);
@@ -215,7 +237,7 @@ export default function EmployerApplicantsPage() {
 
         const { data: applications, error: applicationsError } = await supabase
           .from("applications")
-          .select("id,user_id,job_id,status,resume_url,cover_letter,applied_at")
+          .select("id,user_id,job_id,status,resume_url,cover_letter,screening_answers,applied_at")
           .in("job_id", jobIds)
           .order("applied_at", { ascending: false });
 
@@ -619,6 +641,29 @@ export default function EmployerApplicantsPage() {
                 {selectedRow.application.cover_letter || "求職者未填寫自我推薦信。"}
               </p>
             </div>
+
+            {getScreeningAnswerPairs(selectedRow).length > 0 ? (
+              <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4 text-blue-700" aria-hidden="true" />
+                  <p className="text-sm font-semibold text-blue-950">
+                    非同步面試回答
+                  </p>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {getScreeningAnswerPairs(selectedRow).map((item, index) => (
+                    <div key={`${item.question}-${index}`} className="rounded-lg bg-white p-4 ring-1 ring-blue-100">
+                      <p className="text-sm font-semibold leading-6 text-slate-950">
+                        {index + 1}. {item.question}
+                      </p>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+                        {item.answer}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-5 flex flex-wrap gap-3">
               <button

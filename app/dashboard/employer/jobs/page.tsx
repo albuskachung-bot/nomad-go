@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Loader2, Lock, Plus, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, HelpCircle, Loader2, Lock, Plus, Trash2, XCircle } from "lucide-react";
 import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { supabase } from "@/lib/supabase/client";
 import type { CompanyApprovalStatus, Job } from "@/lib/types";
@@ -129,6 +129,7 @@ export default function EmployerJobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companyName, setCompanyName] = useState("");
+  const [screeningQuestions, setScreeningQuestions] = useState<string[]>([""]);
   const [workspace, setWorkspace] = useState<WorkspaceState>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -266,6 +267,10 @@ export default function EmployerJobsPage() {
       .split(",")
       .map((tag) => tag.trim())
       .filter(Boolean) ?? [];
+    const cleanedScreeningQuestions = screeningQuestions
+      .map((question) => question.trim())
+      .filter(Boolean)
+      .slice(0, 3);
 
     try {
       setIsSubmitting(true);
@@ -312,6 +317,7 @@ export default function EmployerJobsPage() {
         requirements,
         nice_to_haves: niceToHaves,
         benefits,
+        screening_questions: cleanedScreeningQuestions,
         apply_url: null,
         is_featured: false,
         rejection_reason: null,
@@ -327,6 +333,7 @@ export default function EmployerJobsPage() {
       }
 
       form.reset();
+      setScreeningQuestions([""]);
       setToast({
         type: "success",
         message: "職缺已送出審核。"
@@ -428,6 +435,71 @@ export default function EmployerJobsPage() {
           <Textarea name="requirements" label="必備條件" required />
           <Textarea name="nice_to_haves" label="加分條件" />
           <Textarea name="benefits" label="公司福利" />
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+            <div className="flex items-start gap-3">
+              <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-950">
+                  自訂篩選問題
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  設定非同步面試問題（例如：請提供一段 1 分鐘的自我介紹影片連結，或簡述您最自豪的專案），幫助您快速篩選人才。
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  {screeningQuestions.map((question, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input
+                        value={question}
+                        onChange={(event) =>
+                          setScreeningQuestions((currentQuestions) =>
+                            currentQuestions.map((item, itemIndex) =>
+                              itemIndex === index ? event.target.value : item
+                            )
+                          )
+                        }
+                        placeholder={`篩選問題 ${index + 1}`}
+                        maxLength={240}
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      />
+                      {screeningQuestions.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setScreeningQuestions((currentQuestions) =>
+                              currentQuestions.filter((_, itemIndex) => itemIndex !== index)
+                            )
+                          }
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200 transition hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label={`刪除篩選問題 ${index + 1}`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setScreeningQuestions((currentQuestions) =>
+                      currentQuestions.length >= 3 ? currentQuestions : [...currentQuestions, ""]
+                    )
+                  }
+                  disabled={screeningQuestions.length >= 3}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  新增問題
+                </button>
+                <span className="ml-3 text-xs font-medium text-slate-500">
+                  最多 3 題
+                </span>
+              </div>
+            </div>
+          </div>
         </fieldset>
 
         <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">

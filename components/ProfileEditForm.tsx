@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import {
   BriefcaseBusiness,
   Camera,
+  CheckCircle2,
   GraduationCap,
   Globe2,
   ImageUp,
@@ -14,7 +15,8 @@ import {
   Save,
   Trash2,
   UploadCloud,
-  UserRound
+  UserRound,
+  XCircle
 } from "lucide-react";
 import {
   saveNomadProfile,
@@ -60,6 +62,11 @@ type ProfileFormState = {
   work_experience: WorkExperienceFormItem[];
   education: EducationFormItem[];
   is_public: boolean;
+};
+
+type Toast = {
+  type: "success" | "error";
+  message: string;
 };
 
 const initialForm: ProfileFormState = {
@@ -212,11 +219,21 @@ export default function ProfileEditForm() {
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [toast, setToast] = useState<Toast | null>(null);
 
   const canSubmit = useMemo(
     () => Boolean(userId && supabase && !isUploadingAvatar && !isUploadingBanner),
     [isUploadingAvatar, isUploadingBanner, userId]
   );
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -434,59 +451,101 @@ export default function ProfileEditForm() {
     event.preventDefault();
     setMessage("");
     setError("");
+    setToast(null);
 
     if (!supabase || !userId) {
-      setError("請先登入後再提交 Profile。");
+      const errorMessage = "請先登入後再提交 Profile。";
+      setError(errorMessage);
+      setToast({ type: "error", message: errorMessage });
       return;
     }
 
     setIsSubmitting(true);
 
-    const social_urls: Record<string, string> = {};
-    if (form.linkedin_url.trim()) {
-      social_urls.linkedin = form.linkedin_url.trim();
+    try {
+      const social_urls: Record<string, string> = {};
+      if (form.linkedin_url.trim()) {
+        social_urls.linkedin = form.linkedin_url.trim();
+      }
+      if (form.github_url.trim()) {
+        social_urls.github = form.github_url.trim();
+      }
+
+      const updatePayload: NomadProfilePayload = {
+        full_name: form.full_name,
+        job_title: form.job_title,
+        avatar_url: form.avatar_url,
+        banner_url: form.banner_url,
+        location: form.location,
+        timezone: form.timezone,
+        skills: splitList(form.skills),
+        languages: splitList(form.languages),
+        work_type: form.work_type,
+        bio: form.bio,
+        portfolio_url: form.portfolio_url,
+        work_experience: serializeWorkExperience(form.work_experience),
+        education: serializeEducation(form.education),
+        is_public: form.is_public,
+        linkedin_url: social_urls.linkedin ?? "",
+        github_url: social_urls.github ?? ""
+      };
+
+      const result = await saveNomadProfile(updatePayload);
+
+      if (!result.ok) {
+        const errorMessage = result.message || "儲存失敗，請檢查資料或稍後再試。";
+        setError(errorMessage);
+        setToast({ type: "error", message: errorMessage });
+        return;
+      }
+
+      const successMessage = result.message || "履歷資料已成功儲存！";
+      setMessage(successMessage);
+      setToast({ type: "success", message: successMessage });
+    } catch (submitError) {
+      console.error("[profile-edit] Failed to submit profile.", submitError);
+      const errorMessage = "儲存失敗，請檢查資料或稍後再試。";
+      setError(errorMessage);
+      setToast({ type: "error", message: errorMessage });
+    } finally {
+      setIsSubmitting(false);
     }
-    if (form.github_url.trim()) {
-      social_urls.github = form.github_url.trim();
-    }
-
-    const updatePayload: NomadProfilePayload = {
-      full_name: form.full_name,
-      job_title: form.job_title,
-      avatar_url: form.avatar_url,
-      banner_url: form.banner_url,
-      location: form.location,
-      timezone: form.timezone,
-      skills: splitList(form.skills),
-      languages: splitList(form.languages),
-      work_type: form.work_type,
-      bio: form.bio,
-      portfolio_url: form.portfolio_url,
-      work_experience: serializeWorkExperience(form.work_experience),
-      education: serializeEducation(form.education),
-      is_public: form.is_public,
-      linkedin_url: social_urls.linkedin ?? "",
-      github_url: social_urls.github ?? ""
-    };
-
-    const result = await saveNomadProfile(updatePayload);
-
-    setIsSubmitting(false);
-
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-
-    setMessage(result.message);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {toast ? (
+        <div
+          className={`fixed bottom-5 right-5 z-[90] flex max-w-md items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg ${
+            toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"
+          }`}
+          role="status"
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
+          ) : (
+            <XCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+          )}
+          <span>{toast.message}</span>
+        </div>
+      ) : null}
+
       {isLoading ? (
         <div className="rounded-lg bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
           <Loader2 className="mr-2 inline h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
           正在載入 Profile...
+        </div>
+      ) : null}
+
+      {message ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          {message}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
+          {error}
         </div>
       ) : null}
 
@@ -1014,13 +1073,6 @@ export default function ProfileEditForm() {
         </div>
       </section>
 
-      {message ? (
-        <p className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">{message}</p>
-      ) : null}
-      {error ? (
-        <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p>
-      ) : null}
-
       <div className="sticky bottom-4 flex justify-end">
         <button
           type="submit"
@@ -1032,7 +1084,7 @@ export default function ProfileEditForm() {
           ) : (
             <Save className="h-4 w-4" aria-hidden="true" />
           )}
-          {isSubmitting ? "Submitting..." : "儲存 Profile"}
+          {isSubmitting ? "儲存中..." : "儲存 Profile"}
         </button>
       </div>
     </form>
