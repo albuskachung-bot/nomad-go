@@ -1,127 +1,262 @@
 import Link from "next/link";
-import { ArrowUpRight, BadgeCheck, CreditCard, Sparkles } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarClock,
+  CheckCircle2,
+  CreditCard,
+  Crown,
+  Rocket,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  type LucideIcon
+} from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+type TalentPlan = "free" | "pro" | "vip";
+
 type BillingState = {
-  sponsoredUntil: string | null;
+  currentPlan: TalentPlan;
+  displayName: string;
+  jobTitle: string | null;
+  planExpiresAt: string | null;
   userEmail: string | null;
 };
 
+type TalentPlanCard = {
+  id: TalentPlan;
+  name: string;
+  price: string;
+  helper: string;
+  icon: LucideIcon;
+  cta: string;
+  features: string[];
+};
+
+const planLabels: Record<TalentPlan, string> = {
+  free: "Free",
+  pro: "Pro",
+  vip: "VIP"
+};
+
+const talentPlans: TalentPlanCard[] = [
+  {
+    id: "free",
+    name: "Free",
+    price: "$0",
+    helper: "適合剛開始尋找遠距機會的遊牧者。",
+    icon: ShieldCheck,
+    cta: "開始使用 Free",
+    features: ["建立完整個人專頁", "無限制瀏覽遠距職缺", "基本投遞與追蹤功能"]
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$9",
+    helper: "適合積極求職，希望脫穎而出的專業人才。",
+    icon: Rocket,
+    cta: "升級 Pro",
+    features: [
+      "包含 Free 所有功能",
+      "履歷排名優先曝光",
+      "查看誰看過我的履歷",
+      "解鎖進階薪資數據洞察"
+    ]
+  },
+  {
+    id: "vip",
+    name: "VIP",
+    price: "$19",
+    helper: "適合需要建立強大個人品牌的資深接案者/專家。",
+    icon: Crown,
+    cta: "升級 VIP",
+    features: [
+      "包含 Pro 所有功能",
+      "首頁精選人才列表輪播曝光",
+      "專屬 AI 履歷健檢",
+      "模擬面試與個人品牌建議"
+    ]
+  }
+];
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "無";
+  }
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "日期待確認";
+  }
+
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(parsedDate);
+}
+
+function getHeroCopy(currentPlan: TalentPlan) {
+  if (currentPlan === "vip") {
+    return "目前使用 VIP 方案。您的履歷會在精選人才列表中獲得更高曝光，並搭配個人品牌與 AI 履歷健檢資源。";
+  }
+
+  if (currentPlan === "pro") {
+    return "目前使用 Pro 方案。您的履歷將獲得優先曝光，並解鎖更多求職洞察，協助您更快掌握機會。";
+  }
+
+  return "目前使用 Free 方案。升級至 Pro 方案，讓您的履歷在企業端獲得更高的曝光率與優先推薦。";
+}
+
 export default async function NomadBillingPage() {
   const billingState = await getBillingState();
-  const sponsoredUntilDate = billingState.sponsoredUntil
-    ? new Date(billingState.sponsoredUntil)
-    : null;
-  const isVip = Boolean(sponsoredUntilDate && sponsoredUntilDate > new Date());
-  const formattedExpiry = sponsoredUntilDate
-    ? new Intl.DateTimeFormat("zh-TW", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit"
-      }).format(sponsoredUntilDate)
-    : null;
-  const stripePortalUrl = process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL;
 
   return (
-    <div>
-      <div className="mb-6">
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-          Billing
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-normal text-gray-900">
-          方案與帳單
-        </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-          查看目前曝光狀態、VIP 到期日與付款紀錄入口。
-        </p>
-      </div>
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+            Billing
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-slate-950">
+            方案與帳單
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+            管理您的履歷曝光方案、到期時間與升級選項，讓企業更容易在人才庫中找到您。
+          </p>
+        </div>
+        <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+          <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
+          {planLabels[billingState.currentPlan]} plan
+        </span>
+      </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section
-          className={`rounded-lg bg-white p-6 shadow-sm ${
-            isVip ? "ring-2 ring-emerald-100" : ""
-          }`}
-        >
-          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-6 text-white shadow-sm">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-blue-200 ring-1 ring-white/10">
+            <Sparkles className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="mt-6">
+            <p className="text-sm font-semibold text-blue-200">
+              {billingState.jobTitle ?? "Remote Talent"}
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-normal">
+              {billingState.displayName}
+            </h2>
+          </div>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
+            {getHeroCopy(billingState.currentPlan)}
+          </p>
+        </div>
+
+        <aside className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+            <CalendarClock className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h2 className="mt-5 text-lg font-semibold text-slate-950">方案資訊</h2>
+          <dl className="mt-5 space-y-4 text-sm">
             <div>
-              <div
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
-                  isVip ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                {isVip ? (
-                  <BadgeCheck className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                )}
-                {isVip ? "VIP 會員" : "免費會員"}
-              </div>
-
-              <h3 className="mt-5 text-2xl font-semibold tracking-normal text-gray-900">
-                {isVip ? "人才自薦精選曝光中" : "目前使用免費方案"}
-              </h3>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-gray-500">
-                {isVip
-                  ? "你的履歷會在人才頁優先排序，並顯示精選標籤。"
-                  : "升級後可獲得首頁與人才列表的優先曝光，讓雇主更快看見你。"}
-              </p>
+              <dt className="font-medium text-slate-500">目前方案</dt>
+              <dd className="mt-1 font-semibold text-slate-950">
+                {planLabels[billingState.currentPlan]}
+              </dd>
             </div>
-
-            {isVip && formattedExpiry ? (
-              <div className="rounded-lg bg-emerald-50 px-5 py-4 text-left sm:text-right">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  到期日
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-gray-900">{formattedExpiry}</p>
+            <div>
+              <dt className="font-medium text-slate-500">到期時間</dt>
+              <dd className="mt-1 font-semibold text-slate-950">
+                {formatDate(billingState.planExpiresAt)}
+              </dd>
+            </div>
+            {billingState.userEmail ? (
+              <div>
+                <dt className="font-medium text-slate-500">帳號信箱</dt>
+                <dd className="mt-1 truncate font-semibold text-slate-950">
+                  {billingState.userEmail}
+                </dd>
               </div>
             ) : null}
-          </div>
+          </dl>
+        </aside>
+      </section>
 
-          {!isVip ? (
-            <Link
-              href="/pricing"
-              className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-md"
+      <section className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+        {talentPlans.map((plan) => {
+          const Icon = plan.icon;
+          const isCurrent = billingState.currentPlan === plan.id;
+
+          return (
+            <article
+              key={plan.id}
+              className={`relative flex min-h-[420px] flex-col rounded-2xl p-6 shadow-sm transition ${
+                isCurrent
+                  ? "border-2 border-blue-200 bg-blue-50/50 shadow-blue-100/60"
+                  : "border border-slate-200 bg-white hover:-translate-y-0.5 hover:shadow-md"
+              }`}
             >
-              升級方案
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          ) : null}
-        </section>
+              {isCurrent ? (
+                <span className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                  <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  目前方案
+                </span>
+              ) : null}
 
-        <section className="rounded-lg bg-white p-6 shadow-sm">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gray-50 text-gray-600">
-            <CreditCard className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <h3 className="mt-5 text-lg font-semibold text-gray-900">帳單管理</h3>
-          <p className="mt-3 text-sm leading-6 text-gray-500">
-            使用 Stripe Customer Portal 管理付款方式、下載收據與查看帳單紀錄。
-          </p>
+              <div
+                className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                  isCurrent ? "bg-blue-600 text-white" : "bg-slate-950 text-white"
+                }`}
+              >
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </div>
 
-          {stripePortalUrl ? (
-            <a
-              href={stripePortalUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:-translate-y-0.5 hover:border-emerald-100 hover:text-emerald-700 hover:shadow-md"
-            >
-              前往 Stripe 管理帳單與收據
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="mt-6 inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-400"
-            >
-              前往 Stripe 管理帳單與收據
-            </button>
-          )}
+              <div className="mt-6">
+                <h2 className="text-xl font-semibold tracking-normal text-slate-950">
+                  {plan.name}
+                </h2>
+                <div className="mt-3 flex items-end gap-2">
+                  <span className="text-4xl font-semibold tracking-tight text-slate-950">
+                    {plan.price}
+                  </span>
+                  <span className="pb-1 text-sm font-medium text-slate-500">/ month</span>
+                </div>
+                <p className="mt-4 min-h-[48px] text-sm leading-6 text-slate-500">
+                  {plan.helper}
+                </p>
+              </div>
 
-          {billingState.userEmail ? (
-            <p className="mt-4 truncate text-xs text-gray-400">帳號：{billingState.userEmail}</p>
-          ) : null}
-        </section>
-      </div>
+              <ul className="mt-6 space-y-3 text-sm text-slate-600">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <CheckCircle2
+                      className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"
+                      aria-hidden="true"
+                    />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {isCurrent ? (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-auto inline-flex w-full cursor-default items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-500"
+                >
+                  <Star className="h-4 w-4" aria-hidden="true" />
+                  目前使用中
+                </button>
+              ) : (
+                <Link
+                  href={`/pricing?plan=${plan.id}`}
+                  className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  {plan.cta}
+                </Link>
+              )}
+            </article>
+          );
+        })}
+      </section>
     </div>
   );
 }
@@ -131,7 +266,10 @@ async function getBillingState(): Promise<BillingState> {
 
   if (!supabase) {
     return {
-      sponsoredUntil: null,
+      currentPlan: "free",
+      displayName: "遠距人才",
+      jobTitle: null,
+      planExpiresAt: null,
       userEmail: null
     };
   }
@@ -142,14 +280,17 @@ async function getBillingState(): Promise<BillingState> {
 
   if (!user) {
     return {
-      sponsoredUntil: null,
+      currentPlan: "free",
+      displayName: "遠距人才",
+      jobTitle: null,
+      planExpiresAt: null,
       userEmail: null
     };
   }
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("sponsored_until")
+    .select("sponsored_until, full_name, job_title, title")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -157,8 +298,23 @@ async function getBillingState(): Promise<BillingState> {
     console.error("[nomad-billing] failed to load billing state", error);
   }
 
+  const sponsoredUntil = data?.sponsored_until ?? null;
+  const sponsoredUntilDate = sponsoredUntil ? new Date(sponsoredUntil) : null;
+  const isVip = Boolean(sponsoredUntilDate && sponsoredUntilDate > new Date());
+  const metadataName =
+    typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : null;
+  const displayName =
+    data?.full_name?.trim() || metadataName || user.email?.split("@")[0] || "遠距人才";
+
   return {
-    sponsoredUntil: data?.sponsored_until ?? null,
+    currentPlan: isVip ? "vip" : "free",
+    displayName,
+    jobTitle: data?.job_title?.trim() || data?.title?.trim() || null,
+    planExpiresAt: isVip ? sponsoredUntil : null,
     userEmail: user.email ?? null
   };
 }
