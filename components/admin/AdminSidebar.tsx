@@ -24,6 +24,7 @@ const baseItems = [
 const superAdminItems = [
   { href: "/admin/team", label: "權限與團隊", icon: Users },
   { href: "/admin/companies", label: "企業方案控制台", icon: Building2 },
+  { href: "/admin/talents", label: "人才方案控制台", icon: Users },
   { href: "/admin/users", label: "會員管控", icon: Users }
 ];
 
@@ -44,7 +45,9 @@ export default function AdminSidebar({ role }: { role: ProfileRole | null }) {
         {items.map((item) => {
           const Icon = item.icon;
           const isActive =
-            item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+            item.href === "/admin"
+              ? pathname === "/admin"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link

@@ -10,7 +10,8 @@ import {
   Home,
   LayoutDashboard,
   Settings,
-  UserCog
+  UserCog,
+  Users
 } from "lucide-react";
 
 const navItems = [
@@ -45,6 +46,12 @@ const navItems = [
     icon: Crown
   },
   {
+    href: "/admin/talents",
+    label: "人才方案控制台",
+    helper: "Talent Plan Overrides",
+    icon: Users
+  },
+  {
     href: "/admin/team",
     label: "權限與團隊",
     helper: "Team & Roles",
@@ -59,7 +66,7 @@ const navItems = [
 ];
 
 function isItemActive(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname.startsWith(href);
+  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function AdminLayout({

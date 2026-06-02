@@ -12,7 +12,8 @@ import type {
   CompanySubscriptionPlan,
   ContentStatus,
   Database,
-  ProfileRole
+  ProfileRole,
+  TalentSubscriptionPlan
 } from "@/lib/types";
 
 type CurationTable = "jobs" | "guides" | "talents" | "profiles";
@@ -26,6 +27,7 @@ const curationTables: CurationTable[] = ["jobs", "guides", "talents", "profiles"
 const statuses: ContentStatus[] = ["pending", "published", "rejected"];
 const companyApprovalStatuses: CompanyApprovalStatus[] = ["pending", "approved", "rejected"];
 const companySubscriptionPlans: CompanySubscriptionPlan[] = ["free", "pro", "boost"];
+const talentSubscriptionPlans: TalentSubscriptionPlan[] = ["free", "pro", "vip"];
 const userManagementRoles: UserManagementRole[] = [
   "member",
   "reviewer",
@@ -49,6 +51,12 @@ function isCompanySubscriptionPlan(
   plan: string | undefined
 ): plan is CompanySubscriptionPlan {
   return Boolean(plan && companySubscriptionPlans.includes(plan as CompanySubscriptionPlan));
+}
+
+function isTalentSubscriptionPlan(
+  plan: string | undefined
+): plan is TalentSubscriptionPlan {
+  return Boolean(plan && talentSubscriptionPlans.includes(plan as TalentSubscriptionPlan));
 }
 
 function isValidEmail(email: string) {
@@ -162,6 +170,49 @@ export async function updateCompanySubscriptionPlan(formData: FormData): Promise
   return {
     ok: true,
     message: "企業方案已更新。"
+  };
+}
+
+export async function updateTalentSubscriptionPlan(formData: FormData): Promise<ActionResult> {
+  const context = await requireSuperAdmin();
+  const profileId = formData.get("profile_id")?.toString();
+  const nextPlan = formData.get("subscription_plan")?.toString();
+
+  if (!profileId || !isTalentSubscriptionPlan(nextPlan)) {
+    return {
+      ok: false,
+      message: "人才方案資料不完整。"
+    };
+  }
+
+  const updatePayload: Database["public"]["Tables"]["profiles"]["Update"] = {
+    subscription_plan: nextPlan
+  };
+
+  if (nextPlan === "free") {
+    updatePayload.plan_expires_at = null;
+  }
+
+  const { error } = await context.supabase
+    .from("profiles")
+    .update(updatePayload)
+    .eq("id", profileId);
+
+  if (error) {
+    return {
+      ok: false,
+      message: error.message
+    };
+  }
+
+  revalidatePath("/admin/talents");
+  revalidatePath("/dashboard/nomad/billing");
+  revalidatePath(`/talents/${profileId}`);
+  revalidatePath("/talents");
+
+  return {
+    ok: true,
+    message: "人才方案已更新。"
   };
 }
 

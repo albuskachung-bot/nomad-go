@@ -64,6 +64,7 @@ export type ProfileRole =
 export type AccountType = "employer" | "nomad";
 export type CompanyApprovalStatus = "pending" | "approved" | "rejected";
 export type CompanySubscriptionPlan = "free" | "pro" | "boost";
+export type TalentSubscriptionPlan = "free" | "pro" | "vip";
 
 export type ProfileWorkExperience = {
   company: string;
@@ -102,6 +103,8 @@ export type Profile = {
   work_experience: ProfileWorkExperience[];
   education: ProfileEducation[];
   is_public?: boolean;
+  subscription_plan?: TalentSubscriptionPlan;
+  plan_expires_at?: string | null;
   sponsored_until: string | null;
   stripe_customer_id: string | null;
   created_at: string;
