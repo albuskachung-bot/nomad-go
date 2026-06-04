@@ -10,6 +10,7 @@ import {
   Briefcase,
   CreditCard,
   FileText,
+  Home,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -238,8 +239,21 @@ export default function MemberDashboardLayout({
           })}
         </nav>
 
-        <div className="mt-auto rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-xs leading-5 text-emerald-900">
-          集中管理履歷、收藏、應徵紀錄、方案與帳號設定。雇主也能在這裡維護自己的個人會員資料。
+        <div className="mt-auto space-y-3">
+          <Link
+            href="/"
+            className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-slate-600 transition hover:bg-sky-50 hover:text-slate-950"
+          >
+            <Home className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span>
+              <span className="block">返回首頁</span>
+              <span className="mt-0.5 block text-xs text-slate-400">View Site</span>
+            </span>
+          </Link>
+
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-xs leading-5 text-emerald-900">
+            集中管理履歷、收藏、應徵紀錄、方案與帳號設定。雇主也能在這裡維護自己的個人會員資料。
+          </div>
         </div>
       </aside>
 

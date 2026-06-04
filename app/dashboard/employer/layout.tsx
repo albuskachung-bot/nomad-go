@@ -10,6 +10,7 @@ import {
   BriefcaseBusiness,
   Building2,
   CreditCard,
+  Home,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -276,8 +277,21 @@ export default function EmployerDashboardLayout({
           })}
         </nav>
 
-        <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-4 text-xs leading-5 text-slate-300">
-          管理職缺、公司品牌與應徵者名單，讓招募流程集中而清楚。
+        <div className="mt-auto space-y-3">
+          <Link
+            href="/"
+            className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <Home className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span>
+              <span className="block">返回首頁</span>
+              <span className="mt-0.5 block text-xs text-slate-500">View Site</span>
+            </span>
+          </Link>
+
+          <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs leading-5 text-slate-300">
+            管理職缺、公司品牌與應徵者名單，讓招募流程集中而清楚。
+          </div>
         </div>
       </aside>
 
