@@ -83,7 +83,8 @@ export async function GET(request: Request) {
   const { data: employers, error: employerError } = await supabaseAdmin
     .from("profiles")
     .select("id")
-    .eq("account_type", "employer");
+    .eq("account_type", "employer")
+    .eq("email_bounced", false);
 
   if (employerError) {
     return NextResponse.json({ error: employerError.message }, { status: 500 });

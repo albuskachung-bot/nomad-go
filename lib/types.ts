@@ -66,12 +66,24 @@ export type CompanyApprovalStatus = "pending" | "approved" | "rejected";
 export type CompanySubscriptionPlan = "free" | "pro" | "boost";
 export type TalentSubscriptionPlan = "free" | "pro" | "vip";
 export type EdmProvider = "none" | "sendgrid" | "ses";
-export type EdmCampaignStatus = "draft" | "scheduled" | "sending" | "completed";
+export type EdmCampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "sending"
+  | "waiting_for_ab_result"
+  | "completed";
 export type EdmAudienceSegment = "all" | "paid" | "free";
+export type EdmVariant = "a" | "b" | "winner";
+export type EdmRecipientStatus =
+  | "queued"
+  | "sent"
+  | "waiting_for_ab_result"
+  | "skipped";
 export type EdmAutomationTrigger =
   | "cart_abandoned"
   | "esim_expiry_reminder"
-  | "pre_trip";
+  | "pre_trip"
+  | "re_engagement";
 export type EdmAutomationLogStatus = "sent" | "failed" | "skipped";
 export type EdmTrackingEventType =
   | "delivered"
@@ -79,6 +91,22 @@ export type EdmTrackingEventType =
   | "click"
   | "bounce"
   | "spam_report";
+export type EdmOmnichannelChannel = "whatsapp" | "sms";
+export type EdmOmnichannelStatus =
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "failed"
+  | "skipped";
+
+export type EdmCommunicationPreferences = {
+  email?: boolean;
+  sms?: boolean;
+  whatsapp?: boolean;
+  phone_number?: string | null;
+  sms_to?: string | null;
+  whatsapp_to?: string | null;
+};
 
 export type EdmTargetSegment = {
   audience: EdmAudienceSegment;
@@ -126,6 +154,10 @@ export type Profile = {
   plan_expires_at?: string | null;
   free_ai_usage_count?: number;
   quota_reset_date?: string | null;
+  communication_preferences?: EdmCommunicationPreferences;
+  email_bounced?: boolean;
+  last_opened_at?: string | null;
+  edm_lifecycle_tags?: string[];
   sponsored_until: string | null;
   stripe_customer_id: string | null;
   created_at: string;
@@ -353,6 +385,12 @@ export type EdmCampaign = {
   status: EdmCampaignStatus;
   scheduled_at: string | null;
   created_by: string | null;
+  is_ab_test?: boolean;
+  variant_a_subject?: string | null;
+  variant_b_subject?: string | null;
+  test_percentage?: number;
+  test_duration_hours?: number;
+  winning_variant?: "a" | "b" | null;
   created_at: string;
   updated_at: string;
 };
@@ -365,6 +403,9 @@ export type EdmAutomationRule = {
   email_subject: string;
   email_content: string;
   is_active: boolean;
+  is_critical?: boolean;
+  fallback_delay_hours?: number;
+  fallback_message?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -374,6 +415,11 @@ export type EdmAutomationLog = {
   rule_id: string;
   user_id: string | null;
   reference_id?: string | null;
+  recipient_email?: string | null;
+  email_sent_at?: string | null;
+  opened_at?: string | null;
+  fallback_channel?: EdmOmnichannelChannel | null;
+  fallback_sent_at?: string | null;
   triggered_at: string;
   status: EdmAutomationLogStatus;
 };
@@ -391,11 +437,81 @@ export type EdmCampaignMetrics = {
 
 export type EdmTrackingLog = {
   id: string;
-  campaign_id: string;
+  campaign_id: string | null;
+  automation_log_id?: string | null;
+  automation_rule_id?: string | null;
   recipient_email: string;
   event_type: EdmTrackingEventType;
   url: string | null;
+  variant?: EdmVariant | null;
   created_at: string;
+};
+
+export type EdmDynamicBlock = {
+  id: string;
+  name: string;
+  target_role: string;
+  html_content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmOmnichannelSettings = {
+  id: string;
+  provider: "twilio" | "none";
+  account_sid: string | null;
+  auth_token: string | null;
+  messaging_service_sid?: string | null;
+  sms_from: string | null;
+  whatsapp_from: string | null;
+  enabled_channels: Partial<Record<EdmOmnichannelChannel, boolean>>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmOmnichannelLog = {
+  id: string;
+  automation_log_id: string | null;
+  automation_rule_id: string | null;
+  campaign_id: string | null;
+  user_id: string | null;
+  recipient_email: string | null;
+  recipient_phone: string | null;
+  channel: EdmOmnichannelChannel;
+  provider: "twilio" | "none";
+  provider_message_id: string | null;
+  status: EdmOmnichannelStatus;
+  message: string;
+  conversion_event: string | null;
+  conversion_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmCampaignRecipient = {
+  id: string;
+  campaign_id: string;
+  user_id: string | null;
+  recipient_email: string;
+  recipient_name: string | null;
+  variant: EdmVariant | null;
+  status: EdmRecipientStatus;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmCampaignVariantMetrics = {
+  campaign_id: string;
+  variant: EdmVariant;
+  sent_count: number;
+  delivered_count: number;
+  open_count: number;
+  click_count: number;
+  bounce_count: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Database = {
@@ -539,6 +655,45 @@ export type Database = {
         Update: Partial<EdmCampaign>;
         Relationships: [];
       };
+      edm_dynamic_blocks: {
+        Row: EdmDynamicBlock;
+        Insert: Omit<EdmDynamicBlock, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmDynamicBlock>;
+        Relationships: [];
+      };
+      edm_campaign_recipients: {
+        Row: EdmCampaignRecipient;
+        Insert: Omit<EdmCampaignRecipient, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmCampaignRecipient>;
+        Relationships: [];
+      };
+      edm_omnichannel_settings: {
+        Row: EdmOmnichannelSettings;
+        Insert: Omit<EdmOmnichannelSettings, "created_at" | "updated_at"> & {
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmOmnichannelSettings>;
+        Relationships: [];
+      };
+      edm_omnichannel_logs: {
+        Row: EdmOmnichannelLog;
+        Insert: Omit<EdmOmnichannelLog, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmOmnichannelLog>;
+        Relationships: [];
+      };
       edm_automation_rules: {
         Row: EdmAutomationRule;
         Insert: Omit<EdmAutomationRule, "id" | "created_at" | "updated_at"> & {
@@ -565,6 +720,15 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<EdmCampaignMetrics>;
+        Relationships: [];
+      };
+      edm_campaign_variant_metrics: {
+        Row: EdmCampaignVariantMetrics;
+        Insert: Omit<EdmCampaignVariantMetrics, "created_at" | "updated_at"> & {
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmCampaignVariantMetrics>;
         Relationships: [];
       };
       edm_tracking_logs: {
@@ -660,6 +824,15 @@ export type Database = {
       increment_edm_campaign_metric: {
         Args: {
           target_campaign_id: string;
+          target_metric: string;
+          increment_by?: number;
+        };
+        Returns: void;
+      };
+      increment_edm_campaign_variant_metric: {
+        Args: {
+          target_campaign_id: string;
+          target_variant: string;
           target_metric: string;
           increment_by?: number;
         };

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendAutomationOmnichannelFallback } from "@/lib/edm/omnichannel";
 import { injectEdmUtmParameters } from "@/lib/edm/utm-injector";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { EdmAutomationRule, Order, Profile } from "@/lib/types";
+import type { EdmAutomationLog, EdmAutomationRule, Order, Profile } from "@/lib/types";
 
 type AdminClient = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
 
@@ -26,10 +27,18 @@ type ProcessedRuleResult = {
   skipped: number;
 };
 
+type FallbackResult = {
+  candidates: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+};
+
 export const dynamic = "force-dynamic";
 
 const cronWindowHours = 24;
 const maxCandidatesPerRule = 500;
+const maxFallbackCandidates = 500;
 
 function getBearerToken(request: NextRequest) {
   const authorization = request.headers.get("authorization") ?? "";
@@ -96,6 +105,13 @@ function renderTemplate(template: string, variables: Record<string, string>) {
   );
 }
 
+function getAutomationFallbackMessage(rule: EdmAutomationRule) {
+  return (
+    rule.fallback_message?.trim() ||
+    "重要提醒：請回到 NOMAD-GO 查看你的最新通知與行前準備事項。"
+  );
+}
+
 async function getAuthEmailByUserId(supabaseAdmin: AdminClient) {
   const emailByUserId = new Map<string, string>();
   let page = 1;
@@ -141,7 +157,7 @@ async function hydrateOrderCandidates(
   const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
   const { data: profiles, error } = await supabaseAdmin
     .from("profiles")
-    .select("id,full_name,title")
+    .select("id,full_name,title,email_bounced")
     .in("id", userIds);
 
   if (error) {
@@ -149,9 +165,14 @@ async function hydrateOrderCandidates(
   }
 
   const profileById = new Map(
-    ((profiles ?? []) as Pick<Profile, "id" | "full_name" | "title">[]).map(
-      (profile) => [profile.id, profile]
+    (
+      (profiles ?? []) as Pick<
+        Profile,
+        "id" | "full_name" | "title" | "email_bounced"
+      >[]
     )
+      .filter((profile) => profile.email_bounced !== true)
+      .map((profile) => [profile.id, profile])
   );
   const emailByUserId = await getAuthEmailByUserId(supabaseAdmin);
   const candidates: AutomationCandidate[] = [];
@@ -290,6 +311,40 @@ async function getCandidatesForRule(
   return [] as AutomationCandidate[];
 }
 
+async function insertAutomationLog({
+  rule,
+  candidate,
+  supabaseAdmin
+}: {
+  rule: EdmAutomationRule;
+  candidate: AutomationCandidate;
+  supabaseAdmin: AdminClient;
+}) {
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("edm_automation_logs")
+    .insert({
+      rule_id: rule.id,
+      user_id: candidate.userId,
+      reference_id: candidate.referenceId,
+      recipient_email: candidate.email,
+      email_sent_at: now,
+      opened_at: null,
+      fallback_channel: null,
+      fallback_sent_at: null,
+      triggered_at: now,
+      status: "sent"
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to write automation log: ${error.message}`);
+  }
+
+  return data as EdmAutomationLog;
+}
+
 async function filterAlreadyTriggeredCandidates(
   rule: EdmAutomationRule,
   candidates: AutomationCandidate[],
@@ -343,6 +398,11 @@ async function processRule(
 
   for (const candidate of freshCandidates) {
     const subject = renderTemplate(rule.email_subject, candidate.variables);
+    const automationLog = await insertAutomationLog({
+      rule,
+      candidate,
+      supabaseAdmin
+    });
     const html = injectEdmUtmParameters(
       renderTemplate(rule.email_content, candidate.variables),
       `automation-${rule.id}`
@@ -354,19 +414,12 @@ async function processRule(
       trigger: rule.event_trigger,
       to: candidate.email,
       subject,
+      trackingArgs: {
+        automation_log_id: automationLog.id,
+        automation_rule_id: rule.id
+      },
       html
     });
-
-    const { error } = await supabaseAdmin.from("edm_automation_logs").insert({
-      rule_id: rule.id,
-      user_id: candidate.userId,
-      reference_id: candidate.referenceId,
-      status: "sent"
-    });
-
-    if (error) {
-      throw new Error(`Failed to write automation log: ${error.message}`);
-    }
 
     sent += 1;
   }
@@ -377,6 +430,163 @@ async function processRule(
     candidates: candidates.length,
     sent,
     skipped
+  };
+}
+
+async function processCriticalFallbacks(
+  supabaseAdmin: AdminClient,
+  now: Date
+): Promise<FallbackResult> {
+  const { data: rulesData, error: rulesError } = await supabaseAdmin
+    .from("edm_automation_rules")
+    .select("*")
+    .eq("is_active", true)
+    .eq("is_critical", true);
+
+  if (rulesError) {
+    throw new Error(`Failed to load critical automation rules: ${rulesError.message}`);
+  }
+
+  const rules = (rulesData ?? []) as EdmAutomationRule[];
+
+  if (rules.length === 0) {
+    return {
+      candidates: 0,
+      sent: 0,
+      skipped: 0,
+      failed: 0
+    };
+  }
+
+  const ruleById = new Map(rules.map((rule) => [rule.id, rule]));
+  const { data: logsData, error: logsError } = await supabaseAdmin
+    .from("edm_automation_logs")
+    .select("*")
+    .in("rule_id", rules.map((rule) => rule.id))
+    .eq("status", "sent")
+    .is("opened_at", null)
+    .is("fallback_sent_at", null)
+    .order("triggered_at", { ascending: true })
+    .limit(maxFallbackCandidates);
+
+  if (logsError) {
+    throw new Error(`Failed to load critical automation logs: ${logsError.message}`);
+  }
+
+  const dueLogs = ((logsData ?? []) as EdmAutomationLog[]).filter((log) => {
+    const rule = ruleById.get(log.rule_id);
+    const triggeredAt = new Date(log.triggered_at);
+
+    if (!rule || Number.isNaN(triggeredAt.getTime())) {
+      return false;
+    }
+
+    const dueAt =
+      triggeredAt.getTime() + (rule.fallback_delay_hours ?? 24) * 60 * 60 * 1000;
+    return dueAt <= now.getTime();
+  });
+
+  if (dueLogs.length === 0) {
+    return {
+      candidates: 0,
+      sent: 0,
+      skipped: 0,
+      failed: 0
+    };
+  }
+
+  const { data: openedLogs, error: openedError } = await supabaseAdmin
+    .from("edm_tracking_logs")
+    .select("automation_log_id")
+    .in("automation_log_id", dueLogs.map((log) => log.id))
+    .eq("event_type", "open");
+
+  if (openedError) {
+    throw new Error(`Failed to load automation open logs: ${openedError.message}`);
+  }
+
+  const openedLogIds = new Set(
+    ((openedLogs ?? []) as Array<{ automation_log_id: string | null }>).flatMap(
+      (log) => (log.automation_log_id ? [log.automation_log_id] : [])
+    )
+  );
+  const unopenedLogs = dueLogs.filter((log) => !openedLogIds.has(log.id));
+  const userIds = Array.from(
+    new Set(unopenedLogs.map((log) => log.user_id).filter((id): id is string => Boolean(id)))
+  );
+
+  if (userIds.length === 0) {
+    return {
+      candidates: dueLogs.length,
+      sent: 0,
+      skipped: dueLogs.length,
+      failed: 0
+    };
+  }
+
+  const { data: profilesData, error: profilesError } = await supabaseAdmin
+    .from("profiles")
+    .select("*")
+    .in("id", userIds)
+    .eq("is_banned", false);
+
+  if (profilesError) {
+    throw new Error(`Failed to load fallback profiles: ${profilesError.message}`);
+  }
+
+  const profileById = new Map(
+    ((profilesData ?? []) as Profile[]).map((profile) => [profile.id, profile])
+  );
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const log of unopenedLogs) {
+    const rule = ruleById.get(log.rule_id);
+    const profile = log.user_id ? profileById.get(log.user_id) : null;
+
+    if (!rule || !profile) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const name = getRecipientName(profile, log.recipient_email ?? "member@nomad-go");
+      const message = renderTemplate(getAutomationFallbackMessage(rule), {
+        user_name: name,
+        reference_id: log.reference_id ?? "",
+        automation_log_id: log.id
+      });
+      const result = await sendAutomationOmnichannelFallback({
+        supabaseAdmin,
+        rule,
+        automationLog: log,
+        profile,
+        message
+      });
+
+      if (result.sent) {
+        sent += 1;
+      } else if (result.status === "failed") {
+        failed += 1;
+      } else {
+        skipped += 1;
+      }
+    } catch (error) {
+      failed += 1;
+      console.error("[edm-automation] Failed to send fallback.", {
+        automationLogId: log.id,
+        ruleId: log.rule_id,
+        error
+      });
+    }
+  }
+
+  return {
+    candidates: dueLogs.length,
+    sent,
+    skipped,
+    failed
   };
 }
 
@@ -429,10 +639,26 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let fallback: FallbackResult = {
+    candidates: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0
+  };
+
+  try {
+    fallback = await processCriticalFallbacks(supabaseAdmin, now);
+  } catch (fallbackError) {
+    console.error("[edm-automation] Failed to process critical fallbacks.", {
+      error: fallbackError
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     processedAt: now.toISOString(),
     ruleCount: rules.length,
-    rules: processedRules
+    rules: processedRules,
+    criticalFallback: fallback
   });
 }

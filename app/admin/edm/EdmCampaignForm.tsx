@@ -18,6 +18,9 @@ import {
   Loader2,
   Save,
   Send,
+  Split,
+  ToggleLeft,
+  ToggleRight,
   XCircle
 } from "lucide-react";
 import { saveEdmCampaign } from "@/app/actions/edm";
@@ -82,6 +85,19 @@ export default function EdmCampaignForm({ campaign }: EdmCampaignFormProps) {
   const initializedRef = useRef(false);
   const [name, setName] = useState(campaign?.name ?? "");
   const [subject, setSubject] = useState(campaign?.subject ?? "");
+  const [isAbTest, setIsAbTest] = useState(campaign?.is_ab_test ?? false);
+  const [variantASubject, setVariantASubject] = useState(
+    campaign?.variant_a_subject ?? campaign?.subject ?? ""
+  );
+  const [variantBSubject, setVariantBSubject] = useState(
+    campaign?.variant_b_subject ?? ""
+  );
+  const [testPercentage, setTestPercentage] = useState(
+    String(campaign?.test_percentage ?? 20)
+  );
+  const [testDurationHours, setTestDurationHours] = useState(
+    String(campaign?.test_duration_hours ?? 24)
+  );
   const [audience, setAudience] = useState<EdmAudienceSegment>(
     getInitialAudience(campaign)
   );
@@ -136,6 +152,11 @@ export default function EdmCampaignForm({ campaign }: EdmCampaignFormProps) {
     formData.set("campaign_id", campaign?.id ?? "");
     formData.set("name", name);
     formData.set("subject", subject);
+    formData.set("is_ab_test", String(isAbTest));
+    formData.set("variant_a_subject", variantASubject);
+    formData.set("variant_b_subject", variantBSubject);
+    formData.set("test_percentage", testPercentage);
+    formData.set("test_duration_hours", testDurationHours);
     formData.set("audience", audience);
     formData.set("scheduled_at", scheduledAt);
     formData.set("content", editorRef.current?.innerHTML ?? content);
@@ -212,17 +233,29 @@ export default function EdmCampaignForm({ campaign }: EdmCampaignFormProps) {
             />
           </label>
 
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-700">信件主旨</span>
-            <input
-              name="subject"
-              required
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              placeholder="本週遠端職缺與遊牧工具精選"
-              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            />
-          </label>
+          {!isAbTest ? (
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">信件主旨</span>
+              <input
+                name="subject"
+                required
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="本週遠端職缺與遊牧工具精選"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+              />
+            </label>
+          ) : (
+            <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-cyan-900">
+                <Split className="h-4 w-4" aria-hidden="true" />
+                A/B 測試主旨
+              </div>
+              <p className="mt-2 text-xs leading-5 text-cyan-700">
+                啟用後會先抽測試名單，平分 A/B 主旨，剩餘名單等待勝出版本。
+              </p>
+            </div>
+          )}
 
           <label className="block">
             <span className="text-sm font-semibold text-slate-700">目標客群</span>
@@ -253,6 +286,83 @@ export default function EdmCampaignForm({ campaign }: EdmCampaignFormProps) {
             />
           </label>
         </div>
+
+        <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <button
+            type="button"
+            onClick={() => setIsAbTest((current) => !current)}
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${
+              isAbTest
+                ? "bg-cyan-50 text-cyan-700 ring-cyan-100"
+                : "bg-white text-slate-600 ring-slate-200"
+            }`}
+          >
+            {isAbTest ? (
+              <ToggleRight className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ToggleLeft className="h-4 w-4" aria-hidden="true" />
+            )}
+            啟用 A/B 測試
+          </button>
+
+          {isAbTest ? (
+            <div className="mt-5 grid gap-5 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">主旨 A</span>
+                <input
+                  value={variantASubject}
+                  onChange={(event) => setVariantASubject(event.target.value)}
+                  required
+                  placeholder="主旨 A"
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">主旨 B</span>
+                <input
+                  value={variantBSubject}
+                  onChange={(event) => setVariantBSubject(event.target.value)}
+                  required
+                  placeholder="主旨 B"
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">
+                  測試名單比例：{testPercentage}%
+                </span>
+                <input
+                  type="range"
+                  min={2}
+                  max={100}
+                  step={2}
+                  value={testPercentage}
+                  onChange={(event) => setTestPercentage(event.target.value)}
+                  className="mt-3 w-full accent-cyan-600"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  例如 20% 代表 A/B 各發 10%，剩餘 80% 等待勝出版本。
+                </p>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">
+                  勝出判定時間（小時）
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={720}
+                  value={testDurationHours}
+                  onChange={(event) => setTestDurationHours(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                />
+              </label>
+            </div>
+          ) : null}
+        </section>
 
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -347,7 +457,11 @@ export default function EdmCampaignForm({ campaign }: EdmCampaignFormProps) {
             可在內容中使用 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
               {"{{user_name}}"}
             </code>{" "}
-            作為收件人姓名變數。
+            作為收件人姓名變數，也可插入動態區塊標籤如{" "}
+            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+              {"{{block_engineer_jobs}}"}
+            </code>
+            。
           </p>
         </div>
 

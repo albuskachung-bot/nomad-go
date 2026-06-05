@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   BarChart3,
+  Blocks,
   CalendarClock,
   CircleAlert,
   Mail,
@@ -51,6 +52,10 @@ const statusMeta: Record<
   completed: {
     label: "Completed",
     className: "bg-emerald-50 text-emerald-700 ring-emerald-100"
+  },
+  waiting_for_ab_result: {
+    label: "Waiting A/B",
+    className: "bg-violet-50 text-violet-700 ring-violet-100"
   }
 };
 
@@ -58,9 +63,16 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function normalizeStatus(value: string | null | undefined): EdmCampaignStatus {
-  return value === "scheduled" || value === "sending" || value === "completed"
-    ? value
-    : "draft";
+  if (
+    value === "scheduled" ||
+    value === "sending" ||
+    value === "waiting_for_ab_result" ||
+    value === "completed"
+  ) {
+    return value;
+  }
+
+  return "draft";
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -160,6 +172,13 @@ export default async function AdminEdmPage({ searchParams }: AdminEdmPageProps) 
             成效看板
           </Link>
           <Link
+            href="/admin/edm/dynamic-blocks"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <Blocks className="h-4 w-4" aria-hidden="true" />
+            動態區塊
+          </Link>
+          <Link
             href="/admin/edm/automations"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-800 transition hover:bg-violet-100"
           >
@@ -205,30 +224,36 @@ export default async function AdminEdmPage({ searchParams }: AdminEdmPageProps) 
         </div>
       ) : null}
 
-      <section className="grid gap-5 md:grid-cols-4">
-        {(["draft", "scheduled", "sending", "completed"] as EdmCampaignStatus[]).map(
-          (status) => {
-            const meta = statusMeta[status];
-            const count = campaigns.filter(
-              (campaign) => normalizeStatus(campaign.status) === status
-            ).length;
+      <section className="grid gap-5 md:grid-cols-5">
+        {(
+          [
+            "draft",
+            "scheduled",
+            "sending",
+            "waiting_for_ab_result",
+            "completed"
+          ] as EdmCampaignStatus[]
+        ).map((status) => {
+          const meta = statusMeta[status];
+          const count = campaigns.filter(
+            (campaign) => normalizeStatus(campaign.status) === status
+          ).length;
 
-            return (
-              <article
-                key={status}
-                className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
-              >
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${meta.className}`}>
-                  {meta.label}
-                </span>
-                <p className="mt-5 text-3xl font-semibold tracking-normal text-slate-950">
-                  {count}
-                </p>
-                <p className="mt-2 text-sm text-slate-500">個 Campaign</p>
-              </article>
-            );
-          }
-        )}
+          return (
+            <article
+              key={status}
+              className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
+            >
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${meta.className}`}>
+                {meta.label}
+              </span>
+              <p className="mt-5 text-3xl font-semibold tracking-normal text-slate-950">
+                {count}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">個 Campaign</p>
+            </article>
+          );
+        })}
       </section>
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
@@ -270,7 +295,11 @@ export default async function AdminEdmPage({ searchParams }: AdminEdmPageProps) 
                         {campaign.name}
                       </Link>
                       <p className="mt-1 line-clamp-1 text-xs text-slate-500">
-                        {campaign.subject}
+                        {campaign.is_ab_test
+                          ? `${campaign.variant_a_subject ?? campaign.subject} / ${
+                              campaign.variant_b_subject ?? "主旨 B 未設定"
+                            }`
+                          : campaign.subject}
                       </p>
                     </td>
                     <td className="px-6 py-5">
@@ -303,7 +332,9 @@ export default async function AdminEdmPage({ searchParams }: AdminEdmPageProps) 
                           <input type="hidden" name="campaign_id" value={campaign.id} />
                           <button
                             type="submit"
-                            disabled={status === "sending"}
+                            disabled={
+                              status === "sending" || status === "waiting_for_ab_result"
+                            }
                             className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Play className="h-3.5 w-3.5" aria-hidden="true" />

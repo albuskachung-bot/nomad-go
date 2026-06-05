@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
 import {
+  BellRing,
   CheckCircle2,
   Loader2,
   Save,
@@ -45,6 +46,12 @@ const triggerOptions: Array<{
     label: "行前通知",
     defaultDelayHours: 72,
     description: "出發前 3 天觸發，寄送天氣與注意事項模板。"
+  },
+  {
+    value: "re_engagement",
+    label: "最後挽回",
+    defaultDelayHours: 0,
+    description: "名單清洗判定沉睡用戶後，發送一次最後挽回信。"
   }
 ];
 
@@ -69,6 +76,11 @@ const defaultTemplates: Record<
     subject: "{{user_name}}，出發前 3 天準備清單",
     content:
       "<p>Hi {{user_name}},</p><p>距離你的出發時間約剩 3 天。請再次確認目的地天氣、網路工具、簽證與保險資訊。</p><ul><li>查看目的地天氣與體感溫度</li><li>確認 eSIM 或漫遊方案可用</li><li>備份護照、住宿與交通資料</li></ul>"
+  },
+  re_engagement: {
+    subject: "{{user_name}}，還想繼續收到 NOMAD-GO 精選內容嗎？",
+    content:
+      "<p>Hi {{user_name}},</p><p>你已經一段時間沒有開啟 NOMAD-GO 的電子報。我們整理了近期最受歡迎的遠端職缺、城市指南與出發工具，歡迎回來看看。</p>"
   }
 };
 
@@ -94,6 +106,14 @@ export default function AutomationRuleForm({ rule, mode }: AutomationRuleFormPro
     rule?.email_content ?? defaultTemplates[initialTrigger].content
   );
   const [isActive, setIsActive] = useState(rule?.is_active ?? true);
+  const [isCritical, setIsCritical] = useState(rule?.is_critical ?? false);
+  const [fallbackDelayHours, setFallbackDelayHours] = useState(
+    String(rule?.fallback_delay_hours ?? 24)
+  );
+  const [fallbackMessage, setFallbackMessage] = useState(
+    rule?.fallback_message ??
+      "重要提醒：請回到 NOMAD-GO 查看你的最新通知與行前準備事項。"
+  );
   const [toast, setToast] = useState<Toast | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -115,6 +135,7 @@ export default function AutomationRuleForm({ rule, mode }: AutomationRuleFormPro
       setDelayHours(String(meta.defaultDelayHours));
       setEmailSubject(defaultTemplates[nextTrigger].subject);
       setEmailContent(defaultTemplates[nextTrigger].content);
+      setIsCritical(nextTrigger === "esim_expiry_reminder" || nextTrigger === "pre_trip");
     }
   }
 
@@ -122,6 +143,7 @@ export default function AutomationRuleForm({ rule, mode }: AutomationRuleFormPro
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     formData.set("is_active", String(isActive));
+    formData.set("is_critical", String(isCritical));
 
     startTransition(() => {
       saveEdmAutomationRule(formData)
@@ -262,6 +284,58 @@ export default function AutomationRuleForm({ rule, mode }: AutomationRuleFormPro
           className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm leading-6 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
         />
       </label>
+
+      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <button
+          type="button"
+          onClick={() => setIsCritical((current) => !current)}
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${
+            isCritical
+              ? "bg-amber-50 text-amber-700 ring-amber-100"
+              : "bg-white text-slate-600 ring-slate-200"
+          }`}
+        >
+          <BellRing className="h-4 w-4" aria-hidden="true" />
+          {isCritical ? "重要通知：啟用跨頻道升級" : "一般通知"}
+        </button>
+
+        {isCritical ? (
+          <div className="mt-4 grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">
+                升級等待小時
+              </span>
+              <input
+                name="fallback_delay_hours"
+                type="number"
+                min={0}
+                max={720}
+                value={fallbackDelayHours}
+                onChange={(event) => setFallbackDelayHours(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">
+                WhatsApp / SMS 提醒文案
+              </span>
+              <textarea
+                name="fallback_message"
+                rows={3}
+                value={fallbackMessage}
+                onChange={(event) => setFallbackMessage(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            <input type="hidden" name="fallback_delay_hours" value={fallbackDelayHours} />
+            <input type="hidden" name="fallback_message" value={fallbackMessage} />
+          </>
+        )}
+      </section>
 
       <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-5 text-slate-500">

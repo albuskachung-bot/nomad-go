@@ -21,7 +21,8 @@ type RulesResult = {
 const triggerLabels: Record<EdmAutomationTrigger, string> = {
   cart_abandoned: "購物車挽回",
   esim_expiry_reminder: "eSIM 效期提醒",
-  pre_trip: "行前通知"
+  pre_trip: "行前通知",
+  re_engagement: "最後挽回"
 };
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,8 @@ function normalizeTrigger(value: string | null | undefined): EdmAutomationTrigge
   if (
     value === "cart_abandoned" ||
     value === "esim_expiry_reminder" ||
-    value === "pre_trip"
+    value === "pre_trip" ||
+    value === "re_engagement"
   ) {
     return value;
   }
