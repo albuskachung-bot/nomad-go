@@ -9,6 +9,7 @@ type VirtualAuthorsPageProps = {
   searchParams?: Promise<{
     created?: string;
     error?: string;
+    message?: string;
   }>;
 };
 
@@ -39,7 +40,9 @@ export default async function AdminVirtualAuthorsPage({
 
   const query = await searchParams;
   const notice = query?.created ? "虛擬作者已建立。" : null;
-  const error = query?.error ? errorMessages[query.error] ?? "操作失敗。" : null;
+  const error =
+    query?.message?.trim() ||
+    (query?.error ? errorMessages[query.error] ?? "操作失敗。" : null);
   let virtualAuthors: Profile[] = [];
 
   if (supabase) {
