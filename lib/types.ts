@@ -65,6 +65,24 @@ export type AccountType = "employer" | "nomad";
 export type CompanyApprovalStatus = "pending" | "approved" | "rejected";
 export type CompanySubscriptionPlan = "free" | "pro" | "boost";
 export type TalentSubscriptionPlan = "free" | "pro" | "vip";
+export type EdmProvider = "none" | "sendgrid" | "ses";
+export type EdmCampaignStatus = "draft" | "scheduled" | "sending" | "completed";
+export type EdmAudienceSegment = "all" | "paid" | "free";
+export type EdmAutomationTrigger =
+  | "cart_abandoned"
+  | "esim_expiry_reminder"
+  | "pre_trip";
+export type EdmAutomationLogStatus = "sent" | "failed" | "skipped";
+export type EdmTrackingEventType =
+  | "delivered"
+  | "open"
+  | "click"
+  | "bounce"
+  | "spam_report";
+
+export type EdmTargetSegment = {
+  audience: EdmAudienceSegment;
+};
 
 export type ProfileWorkExperience = {
   company: string;
@@ -253,6 +271,8 @@ export type Order = {
   stripe_session_id: string;
   amount: number;
   status: OrderStatus;
+  product_type?: string | null;
+  departure_at?: string | null;
   created_at: string;
 };
 
@@ -312,6 +332,70 @@ export type EmployerApplicantUnlockRpcRow = {
   already_unlocked: boolean;
   portfolio_url: string | null;
   social_urls: Record<string, string>;
+};
+
+export type EdmSettings = {
+  id: string;
+  provider: EdmProvider;
+  api_key: string | null;
+  sender_name: string | null;
+  sender_email: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmCampaign = {
+  id: string;
+  name: string;
+  subject: string;
+  content: string;
+  target_segment: EdmTargetSegment;
+  status: EdmCampaignStatus;
+  scheduled_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmAutomationRule = {
+  id: string;
+  name: string;
+  event_trigger: EdmAutomationTrigger;
+  delay_hours: number;
+  email_subject: string;
+  email_content: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmAutomationLog = {
+  id: string;
+  rule_id: string;
+  user_id: string | null;
+  reference_id?: string | null;
+  triggered_at: string;
+  status: EdmAutomationLogStatus;
+};
+
+export type EdmCampaignMetrics = {
+  campaign_id: string;
+  sent_count: number;
+  delivered_count: number;
+  open_count: number;
+  click_count: number;
+  bounce_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EdmTrackingLog = {
+  id: string;
+  campaign_id: string;
+  recipient_email: string;
+  event_type: EdmTrackingEventType;
+  url: string | null;
+  created_at: string;
 };
 
 export type Database = {
@@ -436,6 +520,62 @@ export type Database = {
         Update: Partial<PlatformSetting>;
         Relationships: [];
       };
+      edm_settings: {
+        Row: EdmSettings;
+        Insert: Omit<EdmSettings, "created_at" | "updated_at"> & {
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmSettings>;
+        Relationships: [];
+      };
+      edm_campaigns: {
+        Row: EdmCampaign;
+        Insert: Omit<EdmCampaign, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmCampaign>;
+        Relationships: [];
+      };
+      edm_automation_rules: {
+        Row: EdmAutomationRule;
+        Insert: Omit<EdmAutomationRule, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmAutomationRule>;
+        Relationships: [];
+      };
+      edm_automation_logs: {
+        Row: EdmAutomationLog;
+        Insert: Omit<EdmAutomationLog, "id" | "triggered_at"> & {
+          id?: string;
+          triggered_at?: string;
+        };
+        Update: Partial<EdmAutomationLog>;
+        Relationships: [];
+      };
+      edm_campaign_metrics: {
+        Row: EdmCampaignMetrics;
+        Insert: Omit<EdmCampaignMetrics, "created_at" | "updated_at"> & {
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<EdmCampaignMetrics>;
+        Relationships: [];
+      };
+      edm_tracking_logs: {
+        Row: EdmTrackingLog;
+        Insert: Omit<EdmTrackingLog, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<EdmTrackingLog>;
+        Relationships: [];
+      };
       orders: {
         Row: Order;
         Insert: Omit<Order, "id" | "created_at"> & {
@@ -514,6 +654,14 @@ export type Database = {
         Args: {
           target_email: string;
           target_role: ProfileRole;
+        };
+        Returns: void;
+      };
+      increment_edm_campaign_metric: {
+        Args: {
+          target_campaign_id: string;
+          target_metric: string;
+          increment_by?: number;
         };
         Returns: void;
       };

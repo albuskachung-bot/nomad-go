@@ -9,6 +9,7 @@ import {
   Crown,
   Home,
   LayoutDashboard,
+  Mail,
   PenLine,
   Settings,
   UserCog,
@@ -45,6 +46,12 @@ const navItems = [
     label: "虛擬作者",
     helper: "Author Profiles",
     icon: Users
+  },
+  {
+    href: "/admin/edm",
+    label: "EDM 電子報",
+    helper: "Campaigns",
+    icon: Mail
   },
   {
     href: "/admin/billing",
