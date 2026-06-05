@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, PenLine } from "lucide-react";
+import { getPostAuthorDisplay } from "@/components/blog/AuthorBadge";
 import { getPostDescription } from "@/lib/blog-markdown";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Post, Profile } from "@/lib/types";
@@ -22,8 +23,8 @@ function formatDate(value: string) {
   }).format(parsedDate);
 }
 
-function getAuthorName(author: Profile | null) {
-  return author?.full_name?.trim() || author?.title?.trim() || "NOMAD-GO 作者";
+function getAuthorName(post: BlogPostCard) {
+  return getPostAuthorDisplay(post.author).name;
 }
 
 async function getPublishedPosts() {
@@ -124,7 +125,7 @@ export default async function BlogIndexPage() {
                   </p>
 
                   <div className="mt-auto flex items-center justify-between gap-3 pt-6 text-xs text-slate-500">
-                    <span>{getAuthorName(post.author)}</span>
+                    <span>{getAuthorName(post)}</span>
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
                       {formatDate(post.updated_at)}

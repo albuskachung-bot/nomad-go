@@ -103,6 +103,7 @@ export type Profile = {
   work_experience: ProfileWorkExperience[];
   education: ProfileEducation[];
   is_public?: boolean;
+  is_virtual_author?: boolean;
   subscription_plan?: TalentSubscriptionPlan;
   plan_expires_at?: string | null;
   free_ai_usage_count?: number;
@@ -211,6 +212,7 @@ export type Post = {
   tags: string[];
   cover_image_url: string | null;
   is_published: boolean;
+  is_official?: boolean;
   created_at: string;
   updated_at: string;
 };

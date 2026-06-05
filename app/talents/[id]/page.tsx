@@ -7,11 +7,13 @@ import {
   MapPin,
   UserRound,
   BriefcaseBusiness,
+  CalendarDays,
   Clock3,
+  PenLine,
   type LucideIcon
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Profile } from "@/lib/types";
+import type { Post, Profile } from "@/lib/types";
 
 type TalentDetailPageProps = {
   params: Promise<{
@@ -20,6 +22,11 @@ type TalentDetailPageProps = {
 };
 
 export const dynamic = "force-dynamic";
+
+type PublishedArticle = Pick<
+  Post,
+  "id" | "title" | "slug" | "cover_image_url" | "updated_at"
+>;
 
 function initials(name: string | null) {
   if (!name) {
@@ -48,6 +55,20 @@ function getWorkType(profile: Profile) {
     : "開放合作";
 }
 
+function formatDate(value: string) {
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "日期待確認";
+  }
+
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(parsedDate);
+}
+
 async function getPublicTalentProfile(profileId: string) {
   const supabase = await createSupabaseServerClient();
 
@@ -59,8 +80,6 @@ async function getPublicTalentProfile(profileId: string) {
     .from("profiles")
     .select("*")
     .eq("id", profileId)
-    .eq("is_public", true)
-    .eq("account_type", "nomad")
     .eq("is_banned", false)
     .maybeSingle();
 
@@ -72,11 +91,43 @@ async function getPublicTalentProfile(profileId: string) {
   return (data as Profile | null) ?? null;
 }
 
+async function getPublishedArticles(profileId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return [] as PublishedArticle[];
+  }
+
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id,title,slug,cover_image_url,updated_at")
+    .eq("author_id", profileId)
+    .eq("is_published", true)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("[talents/detail] Failed to load published articles.", error);
+    return [] as PublishedArticle[];
+  }
+
+  return (data ?? []) as PublishedArticle[];
+}
+
 export default async function TalentDetailPage({ params }: TalentDetailPageProps) {
   const { id } = await params;
   const profile = await getPublicTalentProfile(id);
 
   if (!profile) {
+    notFound();
+  }
+
+  const publishedArticles = await getPublishedArticles(profile.id);
+  const canRenderAuthorProfile =
+    profile.is_public === true ||
+    profile.is_virtual_author === true ||
+    publishedArticles.length > 0;
+
+  if (!canRenderAuthorProfile) {
     notFound();
   }
 
@@ -173,6 +224,44 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
               <p className="mt-5 text-sm text-gray-500">尚未提供技能標籤。</p>
             )}
           </section>
+
+          {publishedArticles.length > 0 ? (
+            <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
+              <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+                遊牧專欄
+              </h2>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {publishedArticles.map((article) => (
+                  <Link
+                    key={article.id}
+                    href={`/blog/${article.slug}`}
+                    className="group overflow-hidden rounded-xl border border-gray-100 bg-gray-50 transition hover:-translate-y-0.5 hover:border-blue-100 hover:bg-white hover:shadow-sm"
+                  >
+                    {article.cover_image_url ? (
+                      <div
+                        className="h-32 bg-gray-100 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${article.cover_image_url})` }}
+                        aria-label={`${article.title} 封面圖`}
+                      />
+                    ) : (
+                      <div className="flex h-32 items-center justify-center bg-blue-50 text-blue-700">
+                        <PenLine className="h-7 w-7" aria-hidden="true" />
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <h3 className="line-clamp-2 font-semibold leading-6 text-gray-900 group-hover:text-blue-700">
+                        {article.title}
+                      </h3>
+                      <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatDate(article.updated_at)}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">

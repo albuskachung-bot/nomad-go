@@ -1,4 +1,77 @@
 import type { ReactNode } from "react";
+import sanitizeHtml, { type IOptions } from "sanitize-html";
+
+const htmlTagPattern =
+  /<\/?(?:article|aside|blockquote|br|code|div|em|figcaption|figure|h[1-6]|hr|iframe|img|li|ol|p|pre|section|span|strong|table|tbody|td|th|thead|tr|ul|a|b|i)\b[^>]*>/i;
+
+const postHtmlSanitizeOptions: IOptions = {
+  allowedTags: [
+    ...sanitizeHtml.defaults.allowedTags,
+    "article",
+    "aside",
+    "figure",
+    "figcaption",
+    "h1",
+    "h2",
+    "img",
+    "iframe",
+    "section",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td"
+  ],
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    a: ["href", "name", "target", "rel", "title"],
+    img: ["src", "srcset", "alt", "title", "width", "height", "loading"],
+    iframe: [
+      "src",
+      "width",
+      "height",
+      "title",
+      "allow",
+      "allowfullscreen",
+      "frameborder",
+      "scrolling",
+      "referrerpolicy"
+    ],
+    th: ["colspan", "rowspan", "scope"],
+    td: ["colspan", "rowspan"]
+  },
+  allowedSchemes: ["http", "https", "mailto", "tel"],
+  allowedSchemesByTag: {
+    img: ["http", "https"]
+  },
+  allowedIframeHostnames: [
+    "www.youtube.com",
+    "youtube.com",
+    "www.youtube-nocookie.com",
+    "player.vimeo.com",
+    "www.google.com",
+    "maps.google.com",
+    "open.spotify.com"
+  ],
+  transformTags: {
+    a: sanitizeHtml.simpleTransform("a", {
+      rel: "noreferrer",
+      target: "_blank"
+    }),
+    iframe: sanitizeHtml.simpleTransform("iframe", {
+      loading: "lazy"
+    })
+  }
+};
+
+export function isHtmlContent(content: string) {
+  return htmlTagPattern.test(content);
+}
+
+export function sanitizePostHtml(content: string) {
+  return sanitizeHtml(content, postHtmlSanitizeOptions).trim();
+}
 
 function renderInlineMarkdown(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
@@ -118,7 +191,12 @@ export function renderMarkdownContent(markdownText: string) {
 }
 
 export function getPlainTextFromMarkdown(markdownText: string) {
-  return markdownText
+  const withoutHtml = sanitizeHtml(markdownText, {
+    allowedTags: [],
+    allowedAttributes: {}
+  });
+
+  return withoutHtml
     .replace(/\r\n/g, "\n")
     .replace(/!\[[^\]]*]\([^)]+\)/g, "")
     .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")

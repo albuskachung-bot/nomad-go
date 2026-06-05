@@ -9,6 +9,7 @@ import {
   Crown,
   Home,
   LayoutDashboard,
+  PenLine,
   Settings,
   UserCog,
   Users
@@ -32,6 +33,18 @@ const navItems = [
     label: "職缺資料庫",
     helper: "Jobs Inventory / AI Review",
     icon: Briefcase
+  },
+  {
+    href: "/admin/posts/create",
+    label: "官方專欄",
+    helper: "Column Editor",
+    icon: PenLine
+  },
+  {
+    href: "/admin/virtual-authors",
+    label: "虛擬作者",
+    helper: "Author Profiles",
+    icon: Users
   },
   {
     href: "/admin/billing",

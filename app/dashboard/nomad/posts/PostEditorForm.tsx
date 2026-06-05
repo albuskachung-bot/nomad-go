@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Bold,
   CheckCircle2,
+  Code2,
   Eye,
   Heading3,
   ImageUp,
@@ -16,6 +17,7 @@ import {
   X,
   XCircle
 } from "lucide-react";
+import { saveAdminPost } from "@/app/admin/posts/actions";
 import { saveNomadPost } from "@/app/dashboard/nomad/posts/actions";
 import { supabase } from "@/lib/supabase/client";
 import type { Post } from "@/lib/types";
@@ -25,9 +27,31 @@ type Toast = {
   message: string;
 };
 
+type EditorMode = "markdown" | "html";
+
+type PostWithVirtualAuthor = Post & {
+  is_official?: boolean | null;
+};
+
+export type PostAuthorOption = {
+  id: string;
+  name: string;
+  title: string | null;
+  avatarUrl: string | null;
+  isVirtual: boolean;
+};
+
+type PostEditorFormProps = {
+  post?: PostWithVirtualAuthor | null;
+  variant?: "nomad" | "admin";
+  authorOptions?: PostAuthorOption[];
+};
+
 const publicAssetsBucket = "public-assets";
 const coverMaxFileSize = 8 * 1024 * 1024;
 const supportedCoverTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const htmlTagPattern =
+  /<\/?(?:article|aside|blockquote|br|code|div|em|figcaption|figure|h[1-6]|hr|iframe|img|li|ol|p|pre|section|span|strong|table|tbody|td|th|thead|tr|ul|a|b|i)\b[^>]*>/i;
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -53,15 +77,31 @@ function formatTags(tags: string[] | null | undefined) {
   return tags?.filter(Boolean) ?? [];
 }
 
-export default function PostEditorForm({ post }: { post?: Post | null }) {
+function getInitialEditorMode(content: string): EditorMode {
+  return htmlTagPattern.test(content) ? "html" : "markdown";
+}
+
+export default function PostEditorForm({
+  post,
+  variant = "nomad",
+  authorOptions = []
+}: PostEditorFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isAdminVariant = variant === "admin";
+  const initialContent = post?.content ?? "";
+  const initialAuthorId = post?.author_id ?? authorOptions[0]?.id ?? "";
   const [title, setTitle] = useState(post?.title ?? "");
-  const [content, setContent] = useState(post?.content ?? "");
+  const [content, setContent] = useState(initialContent);
+  const [editorMode, setEditorMode] = useState<EditorMode>(
+    getInitialEditorMode(initialContent)
+  );
   const [coverImageUrl, setCoverImageUrl] = useState(post?.cover_image_url ?? "");
   const [tags, setTags] = useState<string[]>(formatTags(post?.tags));
   const [tagInput, setTagInput] = useState("");
+  const [selectedAuthorId, setSelectedAuthorId] = useState(initialAuthorId);
+  const [isOfficial, setIsOfficial] = useState(post?.is_official ?? isAdminVariant);
   const [toast, setToast] = useState<Toast | null>(null);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<"draft" | "publish" | null>(null);
@@ -198,6 +238,11 @@ export default function PostEditorForm({ post }: { post?: Post | null }) {
     textarea.focus();
   }
 
+  function insertHtmlSnippet(before: string, after = "", placeholder = "") {
+    insertMarkdown(before, after, placeholder);
+    setEditorMode("html");
+  }
+
   function insertBulletList() {
     const textarea = textareaRef.current;
 
@@ -223,10 +268,13 @@ export default function PostEditorForm({ post }: { post?: Post | null }) {
   function submitPost(form: HTMLFormElement, intent: "draft" | "publish") {
     const formData = new FormData(form);
     formData.set("is_published", intent === "publish" ? "true" : "false");
+    formData.set("is_official", isOfficial ? "true" : "false");
     setPendingIntent(intent);
 
     startTransition(() => {
-      void saveNomadPost(formData)
+      const savePost = isAdminVariant ? saveAdminPost : saveNomadPost;
+
+      void savePost(formData)
         .then((result) => {
           if (!result.ok) {
             showToast({
@@ -241,7 +289,7 @@ export default function PostEditorForm({ post }: { post?: Post | null }) {
             message: result.message
           });
 
-          if (!post && result.postId) {
+          if (!post && result.postId && !isAdminVariant) {
             router.push(`/dashboard/nomad/posts/${result.postId}/edit`);
           } else {
             router.refresh();
@@ -288,6 +336,9 @@ export default function PostEditorForm({ post }: { post?: Post | null }) {
         <input type="hidden" name="post_id" value={post?.id ?? ""} />
         <input type="hidden" name="cover_image_url" value={coverImageUrl} />
         <input type="hidden" name="tags" value={tags.join(",")} />
+        {isAdminVariant ? (
+          <input type="hidden" name="selected_author_id" value={selectedAuthorId} />
+        ) : null}
 
         <section className="space-y-5 rounded-xl bg-white p-6 shadow-sm ring-1 ring-emerald-100">
           <label className="block">
@@ -303,32 +354,121 @@ export default function PostEditorForm({ post }: { post?: Post | null }) {
           </label>
 
           <div>
-            <span className="text-sm font-medium text-slate-900">內文編輯器</span>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm font-medium text-slate-900">內文編輯器</span>
+              <div className="inline-grid w-full rounded-lg bg-slate-100 p-1 sm:w-auto sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setEditorMode("markdown")}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    editorMode === "markdown"
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Heading3 className="h-3.5 w-3.5" aria-hidden="true" />
+                  Markdown
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorMode("html")}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    editorMode === "html"
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  HTML 原始碼
+                </button>
+              </div>
+            </div>
             <div className="mt-2 flex flex-wrap gap-2 rounded-t-lg border border-b-0 border-slate-200 bg-slate-50 px-3 py-2">
-              <button
-                type="button"
-                onClick={() => insertMarkdown("### ", "", "小標題")}
-                className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
-              >
-                <Heading3 className="h-3.5 w-3.5" aria-hidden="true" />
-                H3
-              </button>
-              <button
-                type="button"
-                onClick={() => insertMarkdown("**", "**", "重點文字")}
-                className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
-              >
-                <Bold className="h-3.5 w-3.5" aria-hidden="true" />
-                粗體
-              </button>
-              <button
-                type="button"
-                onClick={insertBulletList}
-                className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
-              >
-                <List className="h-3.5 w-3.5" aria-hidden="true" />
-                項目符號
-              </button>
+              {editorMode === "markdown" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown("### ", "", "小標題")}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <Heading3 className="h-3.5 w-3.5" aria-hidden="true" />
+                    H3
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown("**", "**", "重點文字")}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <Bold className="h-3.5 w-3.5" aria-hidden="true" />
+                    粗體
+                  </button>
+                  <button
+                    type="button"
+                    onClick={insertBulletList}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <List className="h-3.5 w-3.5" aria-hidden="true" />
+                    項目符號
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => insertHtmlSnippet("<h2>", "</h2>", "小標題")}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <Heading3 className="h-3.5 w-3.5" aria-hidden="true" />
+                    H2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertHtmlSnippet("<strong>", "</strong>", "重點文字")}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <Bold className="h-3.5 w-3.5" aria-hidden="true" />
+                    strong
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      insertHtmlSnippet(
+                        '<a href="https://example.com">',
+                        "</a>",
+                        "連結文字"
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    a
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      insertHtmlSnippet(
+                        '<img src="https://example.com/image.jpg" alt="圖片說明" />'
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <ImageUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    img
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      insertHtmlSnippet(
+                        '<iframe src="https://www.youtube.com/embed/VIDEO_ID" title="YouTube video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>'
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                  >
+                    <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    iframe
+                  </button>
+                </>
+              )}
             </div>
             <textarea
               ref={textareaRef}
@@ -337,16 +477,88 @@ export default function PostEditorForm({ post }: { post?: Post | null }) {
               rows={18}
               value={content}
               onChange={(event) => setContent(event.target.value)}
-              placeholder="可使用 Markdown，例如：### 小標題、**重點文字**、- 項目符號、[連結文字](https://example.com)"
-              className="w-full rounded-b-lg border border-slate-200 px-3 py-3 text-sm leading-7 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              placeholder={
+                editorMode === "html"
+                  ? "<h2>城市觀察</h2><p>這裡放文章段落。</p>"
+                  : "可使用 Markdown，例如：### 小標題、**重點文字**、- 項目符號、[連結文字](https://example.com)"
+              }
+              className={`w-full rounded-b-lg border border-slate-200 px-3 py-3 text-sm leading-7 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
+                editorMode === "html" ? "font-mono" : ""
+              }`}
             />
             <span className="mt-2 block text-xs leading-5 text-slate-500">
-              支援 Markdown：H2/H3/H4、小標題、粗體、項目符號與連結。
+              {editorMode === "html"
+                ? "HTML 原始碼模式。"
+                : "支援 Markdown：H2/H3/H4、小標題、粗體、項目符號與連結。"}
             </span>
           </div>
         </section>
 
         <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+          {isAdminVariant ? (
+            <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-cyan-100">
+              <h2 className="font-semibold text-slate-900">發佈身分</h2>
+
+              <div className="mt-4 grid gap-3">
+                {authorOptions.map((author) => (
+                  <label
+                    key={author.id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                      selectedAuthorId === author.id
+                        ? "border-cyan-300 bg-cyan-50 ring-2 ring-cyan-100"
+                        : "border-slate-200 bg-white hover:border-cyan-200"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      checked={selectedAuthorId === author.id}
+                      onChange={() => setSelectedAuthorId(author.id)}
+                    />
+                    <span
+                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white bg-cover bg-center text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100"
+                      style={
+                        author.avatarUrl ? { backgroundImage: `url(${author.avatarUrl})` } : undefined
+                      }
+                    >
+                      {author.avatarUrl ? null : author.name.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-slate-900">
+                        {author.name}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-slate-500">
+                        {author.isVirtual ? "虛擬作者" : "管理員"} ·{" "}
+                        {author.title ?? "NOMAD-GO 作者"}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {authorOptions.length === 0 ? (
+                <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800">
+                  尚未取得可用作者身分。
+                </p>
+              ) : null}
+
+              <label className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={isOfficial}
+                  onChange={(event) => setIsOfficial(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                />
+                <span>
+                  <span className="block font-semibold text-slate-800">官方精選文章</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    勾選後會寫入 posts.is_official，供前台精選與營運排序使用。
+                  </span>
+                </span>
+              </label>
+            </section>
+          ) : null}
+
           <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-emerald-100">
             <div className="flex items-center gap-2">
               <ImageUp className="h-4 w-4 text-emerald-700" aria-hidden="true" />

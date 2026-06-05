@@ -1,10 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, PenLine, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, UserRound } from "lucide-react";
+import AuthorBadge, { getPostAuthorDisplay } from "@/components/blog/AuthorBadge";
 import {
   getPostDescription,
-  renderMarkdownContent
+  isHtmlContent,
+  renderMarkdownContent,
+  sanitizePostHtml
 } from "@/lib/blog-markdown";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Post, Profile } from "@/lib/types";
@@ -42,14 +45,6 @@ function formatDate(value: string) {
     month: "2-digit",
     day: "2-digit"
   }).format(parsedDate);
-}
-
-function getAuthorName(author: Profile | null) {
-  return author?.full_name?.trim() || author?.title?.trim() || "NOMAD-GO 作者";
-}
-
-function getAuthorTitle(author: Profile | null) {
-  return author?.job_title?.trim() || author?.title?.trim() || "遠端工作者";
 }
 
 async function getPublishedPostBySlug(slug: string): Promise<BlogPostDetail | null> {
@@ -141,6 +136,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   }
 
   const { post, author } = detail;
+  const authorDisplay = getPostAuthorDisplay(author);
+  const shouldRenderHtml = isHtmlContent(post.content);
+  const sanitizedHtml = shouldRenderHtml ? sanitizePostHtml(post.content) : "";
 
   return (
     <main className="bg-slate-50">
@@ -174,7 +172,16 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-500">
                 <span className="inline-flex items-center gap-2">
                   <UserRound className="h-4 w-4" aria-hidden="true" />
-                  {getAuthorName(author)}
+                  {authorDisplay.profileHref ? (
+                    <Link
+                      href={authorDisplay.profileHref}
+                      className="font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
+                    >
+                      {authorDisplay.name}
+                    </Link>
+                  ) : (
+                    authorDisplay.name
+                  )}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
@@ -197,37 +204,20 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
         <section className="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8">
           <div className="rounded-2xl bg-white p-7 shadow-sm ring-1 ring-slate-200 sm:p-9">
-            <div className="prose prose-emerald max-w-none prose-headings:tracking-normal prose-p:leading-8 prose-li:leading-7">
-              {renderMarkdownContent(post.content)}
-            </div>
+            {shouldRenderHtml ? (
+              <div
+                className="prose prose-emerald max-w-none prose-headings:tracking-normal prose-p:leading-8 prose-li:leading-7 prose-img:rounded-xl prose-img:shadow-sm prose-iframe:aspect-video prose-iframe:w-full prose-iframe:rounded-xl"
+                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+              />
+            ) : (
+              <div className="prose prose-emerald max-w-none prose-headings:tracking-normal prose-p:leading-8 prose-li:leading-7">
+                {renderMarkdownContent(post.content)}
+              </div>
+            )}
           </div>
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              {author?.avatar_url ? (
-                <div
-                  className="h-14 w-14 rounded-xl bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
-                  style={{ backgroundImage: `url(${author.avatar_url})` }}
-                  aria-label={`${getAuthorName(author)} 頭像`}
-                />
-              ) : (
-                <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                  <PenLine className="h-6 w-6" aria-hidden="true" />
-                </span>
-              )}
-              <h2 className="mt-4 text-base font-semibold text-slate-950">
-                {getAuthorName(author)}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">{getAuthorTitle(author)}</p>
-              {author ? (
-                <Link
-                  href={`/talents/${author.id}`}
-                  className="mt-5 inline-flex w-full items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
-                >
-                  查看作者個人頁
-                </Link>
-              ) : null}
-            </div>
+            <AuthorBadge author={author} />
           </aside>
         </section>
       </article>

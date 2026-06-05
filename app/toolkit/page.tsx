@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Sparkles
 } from "lucide-react";
+import WeatherCard from "@/components/WeatherCard";
 import { getTools } from "@/lib/data";
 
 const categoryIcons = {
@@ -39,7 +40,9 @@ export default async function ToolkitPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <WeatherCard />
+
           {tools.map((tool) => {
             const Icon =
               categoryIcons[tool.category as keyof typeof categoryIcons] ?? BriefcaseBusiness;
@@ -47,7 +50,7 @@ export default async function ToolkitPage() {
             return (
               <article
                 key={tool.id}
-                className="flex h-full flex-col rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-md"
+                className="flex h-full flex-col rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-4">
                   <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
