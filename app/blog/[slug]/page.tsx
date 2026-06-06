@@ -151,19 +151,19 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const sanitizedHtml = shouldRenderHtml ? sanitizePostHtml(post.content) : "";
 
   return (
-    <main className="bg-slate-50">
-      <article>
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-            <Link
-              href="/blog"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              返回遊牧專欄
-            </Link>
+    <main className="min-h-screen bg-slate-50">
+      <div className="container mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <Link
+          href="/blog"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          返回遊牧專欄
+        </Link>
 
-            <div className="mt-8">
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-16">
+          <article className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-10 lg:col-span-8">
+            <header>
               <div className="flex flex-wrap gap-2">
                 {post.tags.map((tag) => (
                   <span
@@ -198,39 +198,35 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   {formatDate(post.updated_at)}
                 </span>
               </div>
-            </div>
-          </div>
-        </section>
+            </header>
 
-        {post.cover_image_url ? (
-          <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6 lg:px-8">
-            <div
-              className="h-64 rounded-2xl bg-slate-100 bg-cover bg-center shadow-sm ring-1 ring-slate-200 md:h-96"
-              style={{ backgroundImage: `url(${post.cover_image_url})` }}
-              aria-label={`${post.title} 封面圖`}
-            />
-          </div>
-        ) : null}
+            {post.cover_image_url ? (
+              <div
+                className="mt-8 h-64 rounded-2xl bg-slate-100 bg-cover bg-center shadow-sm ring-1 ring-slate-200 md:h-96"
+                style={{ backgroundImage: `url(${post.cover_image_url})` }}
+                aria-label={`${post.title} 封面圖`}
+              />
+            ) : null}
 
-        <section className="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8">
-          <div className="rounded-2xl bg-white p-7 shadow-sm ring-1 ring-slate-200 sm:p-9">
             {shouldRenderHtml ? (
               <div
-                className="prose prose-emerald max-w-none prose-headings:tracking-normal prose-p:leading-8 prose-li:leading-7 prose-img:rounded-xl prose-img:shadow-sm prose-iframe:aspect-video prose-iframe:w-full prose-iframe:rounded-xl"
+                className="prose prose-emerald mt-10 max-w-none space-y-6 leading-loose prose-headings:tracking-normal prose-p:my-6 prose-p:leading-loose prose-li:leading-8 prose-img:rounded-xl prose-img:shadow-sm prose-iframe:aspect-video prose-iframe:w-full prose-iframe:rounded-xl"
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
               />
             ) : (
-              <div className="prose prose-emerald max-w-none prose-headings:tracking-normal prose-p:leading-8 prose-li:leading-7">
+              <div className="prose prose-emerald mt-10 max-w-none space-y-6 leading-loose prose-headings:tracking-normal prose-p:my-6 prose-p:leading-loose prose-li:leading-8">
                 {renderMarkdownContent(post.content)}
               </div>
             )}
-          </div>
+          </article>
 
-          <aside className="lg:sticky lg:top-24 lg:self-start">
-            <AuthorBadge author={author} />
+          <aside className="lg:col-span-4">
+            <div className="sticky top-24">
+              <AuthorBadge author={author} />
+            </div>
           </aside>
-        </section>
-      </article>
+        </div>
+      </div>
     </main>
   );
 }
