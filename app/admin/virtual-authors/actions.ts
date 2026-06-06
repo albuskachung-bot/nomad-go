@@ -59,6 +59,48 @@ function getErrorMessage(error: unknown) {
   return "建立虛擬作者時發生未知錯誤。";
 }
 
+function getErrorField(error: unknown, field: string) {
+  if (typeof error !== "object" || error === null || !(field in error)) {
+    return null;
+  }
+
+  const value = (error as Record<string, unknown>)[field];
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  return null;
+}
+
+function formatSupabaseError(error: unknown) {
+  const message = getErrorMessage(error);
+  const code = getErrorField(error, "code");
+  const status = getErrorField(error, "status");
+  const details = getErrorField(error, "details");
+  const hint = getErrorField(error, "hint");
+
+  return [
+    message,
+    code ? `code: ${code}` : null,
+    status ? `status: ${status}` : null,
+    details ? `details: ${details}` : null,
+    hint ? `hint: ${hint}` : null
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function getSupabaseErrorLogFields(error: unknown) {
+  return {
+    message: getErrorMessage(error),
+    code: getErrorField(error, "code"),
+    status: getErrorField(error, "status"),
+    details: getErrorField(error, "details"),
+    hint: getErrorField(error, "hint"),
+    name: getErrorField(error, "name")
+  };
+}
+
 function redirectWithError(message: string): never {
   const params = new URLSearchParams({
     error: "create-failed",
@@ -90,12 +132,30 @@ export async function createVirtualAuthor(formData: FormData) {
   }
 
   let virtualUserId: string | null = null;
+  let supabaseAdmin: ReturnType<typeof createVirtualAuthorAdminClient>;
 
   try {
-    const supabaseAdmin = createVirtualAuthorAdminClient();
-    const email = createInternalVirtualAuthorEmail();
-    const password = createRandomPassword();
+    supabaseAdmin = createVirtualAuthorAdminClient();
+  } catch (error) {
+    const message = `Service Role 初始化失敗：${formatSupabaseError(error)}`;
+    console.error("[virtual-authors] Failed to initialize service role client.", {
+      ...getSupabaseErrorLogFields(error),
+      error
+    });
+    redirectWithError(message);
+  }
 
+  const email = createInternalVirtualAuthorEmail();
+  const password = createRandomPassword();
+  let authFailure:
+    | {
+        message: string;
+        error: unknown;
+      }
+    | null = null;
+  let authUserId: string | null = null;
+
+  try {
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
         email,
@@ -108,73 +168,111 @@ export async function createVirtualAuthor(formData: FormData) {
       });
 
     if (authError) {
-      throw new Error(`建立 Auth 幽靈帳號失敗：${authError.message}`);
+      authFailure = {
+        message: `Auth 失敗：${formatSupabaseError(authError)}`,
+        error: authError
+      };
+    } else if (!authData.user?.id) {
+      authFailure = {
+        message: "Auth 失敗：建立 Auth 幽靈帳號成功，但 Supabase 未回傳 user.id。",
+        error: null
+      };
+    } else {
+      authUserId = authData.user.id;
     }
-
-    if (!authData.user?.id) {
-      throw new Error("建立 Auth 幽靈帳號成功，但 Supabase 未回傳 user.id。");
-    }
-
-    virtualUserId = authData.user.id;
-
-    const profileFields = {
-      role: "member",
-      account_type: "nomad",
-      full_name: fullName,
-      title,
-      job_title: title,
-      avatar_url: avatarUrl,
-      bio,
-      skills: [],
-      location: null,
-      status: "published",
-      is_featured: false,
-      is_banned: false,
-      timezone: null,
-      languages: [],
-      work_type: [],
-      portfolio_url: null,
-      social_urls: {},
-      work_experience: [],
-      education: [],
-      is_public: true,
-      is_virtual_author: true,
-      sponsored_until: null,
-      stripe_customer_id: null
+  } catch (error) {
+    authFailure = {
+      message: `Auth 失敗：${formatSupabaseError(error)}`,
+      error
     };
+  }
 
-    const { data: updatedProfile, error: updateError } = await supabaseAdmin
+  if (authFailure) {
+    console.error("[virtual-authors] Failed to create ghost auth user.", {
+      stage: "auth.admin.createUser",
+      email,
+      ...getSupabaseErrorLogFields(authFailure.error),
+      error: authFailure.error
+    });
+    redirectWithError(authFailure.message);
+  }
+
+  virtualUserId = authUserId;
+
+  const profileFields = {
+    role: "member",
+    account_type: "nomad",
+    full_name: fullName,
+    title,
+    job_title: title,
+    avatar_url: avatarUrl,
+    bio,
+    skills: [],
+    location: null,
+    status: "published",
+    is_featured: false,
+    is_banned: false,
+    timezone: null,
+    languages: [],
+    work_type: [],
+    portfolio_url: null,
+    social_urls: {},
+    work_experience: [],
+    education: [],
+    is_public: true,
+    is_virtual_author: true,
+    sponsored_until: null,
+    stripe_customer_id: null
+  };
+
+  let profileFailure:
+    | {
+        message: string;
+        error: unknown;
+      }
+    | null = null;
+
+  try {
+    const { data: upsertedProfile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update(profileFields as never)
-      .eq("id", virtualUserId)
+      .upsert(
+        {
+          id: virtualUserId,
+          ...profileFields
+        } as never,
+        { onConflict: "id" }
+      )
       .select("id")
       .maybeSingle();
 
-    if (updateError) {
-      throw new Error(`更新虛擬作者 Profile 失敗：${updateError.message}`);
-    }
-
-    if (!updatedProfile) {
-      const { error: insertError } = await supabaseAdmin.from("profiles").insert({
-        id: virtualUserId,
-        ...profileFields
-      } as never);
-
-      if (insertError) {
-        throw new Error(`建立虛擬作者 Profile 失敗：${insertError.message}`);
-      }
+    if (profileError) {
+      profileFailure = {
+        message: `Profile upsert 失敗：${formatSupabaseError(profileError)}`,
+        error: profileError
+      };
+    } else if (!upsertedProfile) {
+      profileFailure = {
+        message: "Profile upsert 失敗：Supabase 未回傳 upsert 後的 profile.id。",
+        error: null
+      };
     }
   } catch (error) {
-    const message = getErrorMessage(error);
-    console.error("[virtual-authors] Failed to create virtual author.", {
-      message,
-      virtualUserId,
+    profileFailure = {
+      message: `Profile upsert 失敗：${formatSupabaseError(error)}`,
       error
+    };
+  }
+
+  if (profileFailure) {
+    console.error("[virtual-authors] Failed to upsert virtual author profile.", {
+      stage: "profiles.upsert",
+      virtualUserId,
+      ...getSupabaseErrorLogFields(profileFailure.error),
+      error: profileFailure.error
     });
 
     if (virtualUserId) {
       try {
-        const supabaseAdmin = createVirtualAuthorAdminClient();
         const { error: deleteError } =
           await supabaseAdmin.auth.admin.deleteUser(virtualUserId);
 
@@ -194,7 +292,7 @@ export async function createVirtualAuthor(formData: FormData) {
       }
     }
 
-    redirectWithError(message);
+    redirectWithError(profileFailure.message);
   }
 
   revalidatePath("/admin/virtual-authors");
