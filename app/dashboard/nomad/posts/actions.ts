@@ -30,32 +30,14 @@ function readTags(value: FormDataEntryValue | null) {
 }
 
 function createPostSlug(title: string) {
-  let normalized = "";
-  let previousWasDash = false;
-
-  Array.from(title.normalize("NFKD").toLowerCase()).forEach((char) => {
-    const isLatinOrNumber = /[a-z0-9]/.test(char);
-    const isCjk = /[\u3400-\u9fff]/.test(char);
-    const isSeparator = /\s|-/.test(char);
-
-    if (isLatinOrNumber || isCjk) {
-      normalized += char;
-      previousWasDash = false;
-      return;
-    }
-
-    if (isSeparator && normalized && !previousWasDash) {
-      normalized += "-";
-      previousWasDash = true;
-    }
-  });
-
-  normalized = normalized
+  const normalized = title
     .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
     .trim()
     .replace(/^-|-$/g, "");
 
-  return normalized || `post-${Date.now()}`;
+  return normalized || `post-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 async function getUniqueSlug(
@@ -118,6 +100,7 @@ export async function saveNomadPost(formData: FormData): Promise<PostActionResul
 
     const postId = readOptionalText(formData.get("post_id"));
     const title = readText(formData.get("title"));
+    const requestedSlug = readOptionalText(formData.get("slug"));
     const content = readText(formData.get("content"));
     const coverImageUrl = readOptionalText(formData.get("cover_image_url"));
     const tags = readTags(formData.get("tags"));
@@ -137,7 +120,7 @@ export async function saveNomadPost(formData: FormData): Promise<PostActionResul
       };
     }
 
-    const baseSlug = createPostSlug(title);
+    const baseSlug = createPostSlug(requestedSlug ?? title);
     const slug = await getUniqueSlug(baseSlug, postId);
 
     const payload: Database["public"]["Tables"]["posts"]["Update"] = {

@@ -47,6 +47,14 @@ function formatDate(value: string) {
   }).format(parsedDate);
 }
 
+function decodeSlugParam(slug: string) {
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return slug;
+  }
+}
+
 async function getPublishedPostBySlug(slug: string): Promise<BlogPostDetail | null> {
   const supabase = await createSupabaseServerClient();
 
@@ -88,7 +96,8 @@ export async function generateMetadata({
   params
 }: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const detail = await getPublishedPostBySlug(slug);
+  const decodedSlug = decodeSlugParam(slug);
+  const detail = await getPublishedPostBySlug(decodedSlug);
 
   if (!detail) {
     return {
@@ -129,7 +138,8 @@ export async function generateMetadata({
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
-  const detail = await getPublishedPostBySlug(slug);
+  const decodedSlug = decodeSlugParam(slug);
+  const detail = await getPublishedPostBySlug(decodedSlug);
 
   if (!detail) {
     notFound();

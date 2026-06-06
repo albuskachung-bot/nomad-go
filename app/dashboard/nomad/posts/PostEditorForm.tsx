@@ -93,6 +93,7 @@ export default function PostEditorForm({
   const initialContent = post?.content ?? "";
   const initialAuthorId = post?.author_id ?? authorOptions[0]?.id ?? "";
   const [title, setTitle] = useState(post?.title ?? "");
+  const [slug, setSlug] = useState(post?.slug ?? "");
   const [content, setContent] = useState(initialContent);
   const [editorMode, setEditorMode] = useState<EditorMode>(
     getInitialEditorMode(initialContent)
@@ -351,6 +352,27 @@ export default function PostEditorForm({
               placeholder="例如：清邁最適合遠端工作的咖啡廳清單"
               className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-900">
+              自訂網址 (Slug)
+            </span>
+            <div className="mt-2 flex overflow-hidden rounded-lg border border-slate-200 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
+              <span className="inline-flex shrink-0 items-center border-r border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-500">
+                /blog/
+              </span>
+              <input
+                name="slug"
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+                placeholder="2026-hokkaido-nomad-guide"
+                className="min-w-0 flex-1 px-3 py-2 text-sm outline-none placeholder:text-slate-400"
+              />
+            </div>
+            <span className="mt-2 block text-xs leading-5 text-slate-500">
+              建議使用簡短英文、數字與橫線。未填寫時會自動產生安全網址。
+            </span>
           </label>
 
           <div>
