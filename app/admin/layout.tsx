@@ -12,6 +12,7 @@ import {
   Home,
   LayoutDashboard,
   Mail,
+  Megaphone,
   PenLine,
   Settings,
   UserCog,
@@ -61,6 +62,12 @@ const menuGroups = [
         label: "虛擬作者",
         helper: "Author Profiles",
         icon: Users
+      },
+      {
+        href: "/admin/placements",
+        label: "全站動態版位",
+        helper: "Placements",
+        icon: Megaphone
       },
       {
         href: "/admin/edm",

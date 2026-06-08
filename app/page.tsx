@@ -14,6 +14,8 @@ import {
   Wifi
 } from "lucide-react";
 import { getFeaturedJobs, getGuides, getSiteSettings } from "@/lib/data";
+import { createSupabasePublicServerClient } from "@/lib/supabase/server";
+import type { PlatformPlacement } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -50,23 +52,73 @@ const talents = [
   }
 ];
 
+async function getAnnouncementPlacement() {
+  const supabase = createSupabasePublicServerClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("platform_placements")
+    .select("*")
+    .eq("location", "announcement_bar")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      return null;
+    }
+
+    console.error("[home] Unable to load announcement placement.", error);
+    return null;
+  }
+
+  return data as PlatformPlacement | null;
+}
+
+function AnnouncementBar({ placement }: { placement: PlatformPlacement | null }) {
+  if (!placement) {
+    return null;
+  }
+
+  const content = (
+    <div className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+      <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 sm:px-6 lg:px-8">
+        <Megaphone className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="font-medium">{placement.title}</span>
+        {placement.link_text ? (
+          <span className="font-semibold underline-offset-4">{placement.link_text}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  if (!placement.link_url) {
+    return content;
+  }
+
+  return (
+    <Link href={placement.link_url} className="block">
+      {content}
+    </Link>
+  );
+}
+
 export default async function HomePage() {
-  const [featuredJobs, guides, siteSettings] = await Promise.all([
+  const [featuredJobs, guides, siteSettings, announcementPlacement] = await Promise.all([
     getFeaturedJobs(3),
     getGuides(),
-    getSiteSettings()
+    getSiteSettings(),
+    getAnnouncementPlacement()
   ]);
 
   return (
     <>
-      {siteSettings.announcement_enabled && siteSettings.announcement_text ? (
-        <div className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 sm:px-6 lg:px-8">
-            <Megaphone className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="font-medium">{siteSettings.announcement_text}</span>
-          </div>
-        </div>
-      ) : null}
+      <AnnouncementBar placement={announcementPlacement} />
 
       <section className="relative isolate min-h-[640px] overflow-hidden">
         <div

@@ -98,6 +98,10 @@ export type EdmOmnichannelStatus =
   | "delivered"
   | "failed"
   | "skipped";
+export type PlatformPlacementLocation =
+  | "announcement_bar"
+  | "hero_banner"
+  | "in_feed_ad";
 
 export type EdmCommunicationPreferences = {
   email?: boolean;
@@ -284,6 +288,18 @@ export type PlatformSetting = {
   key_name: string;
   key_value: string;
   updated_at: string;
+};
+
+export type PlatformPlacement = {
+  id: string;
+  location: PlatformPlacementLocation;
+  title: string;
+  subtitle: string | null;
+  image_url: string | null;
+  link_url: string | null;
+  link_text: string | null;
+  is_active: boolean;
+  sort_order: number;
 };
 
 export type UsageQuotaRpcRow = {
@@ -634,6 +650,14 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<PlatformSetting>;
+        Relationships: [];
+      };
+      platform_placements: {
+        Row: PlatformPlacement;
+        Insert: Omit<PlatformPlacement, "id"> & {
+          id?: string;
+        };
+        Update: Partial<PlatformPlacement>;
         Relationships: [];
       };
       edm_settings: {
