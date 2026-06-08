@@ -38,8 +38,56 @@ function createInternalVirtualAuthorEmail() {
   return `virtual_${Date.now()}_${randomSuffix}@nomad-go.internal`;
 }
 
+const passwordUppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const passwordLowercase = "abcdefghijkmnopqrstuvwxyz";
+const passwordNumbers = "23456789";
+const passwordSymbols = "!@#$%^&*()-_=+[]{}";
+const passwordCharacters =
+  passwordUppercase + passwordLowercase + passwordNumbers + passwordSymbols;
+const postgresLogHint =
+  "請至 Supabase Dashboard 的 Auth Logs 與 Postgres Logs 檢查 Auth Trigger 或資料庫函式的底層錯誤。";
+
+function getSecureRandomIndex(length: number) {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return values[0] % length;
+}
+
+function getRandomPasswordCharacter(characters: string) {
+  return characters[getSecureRandomIndex(characters.length)];
+}
+
 function createRandomPassword() {
-  return `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  const characters = [
+    getRandomPasswordCharacter(passwordUppercase),
+    getRandomPasswordCharacter(passwordLowercase),
+    getRandomPasswordCharacter(passwordNumbers),
+    getRandomPasswordCharacter(passwordSymbols)
+  ];
+
+  while (characters.length < 24) {
+    characters.push(getRandomPasswordCharacter(passwordCharacters));
+  }
+
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = getSecureRandomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [
+      characters[swapIndex],
+      characters[index]
+    ];
+  }
+
+  return characters.join("");
+}
+
+function waitForAuthTrigger(ms = 500) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function appendPostgresLogHint(message: string) {
+  return `${message} ${postgresLogHint}`;
 }
 
 function getErrorMessage(error: unknown) {
@@ -147,6 +195,17 @@ export async function createVirtualAuthor(formData: FormData) {
 
   const email = createInternalVirtualAuthorEmail();
   const password = createRandomPassword();
+  const userMetadata = {
+    full_name: fullName,
+    name: fullName,
+    title,
+    job_title: title,
+    avatar_url: avatarUrl,
+    bio,
+    account_type: "nomad",
+    role: "member",
+    is_virtual_author: true
+  };
   let authFailure:
     | {
         message: string;
@@ -161,20 +220,21 @@ export async function createVirtualAuthor(formData: FormData) {
         email,
         password,
         email_confirm: true,
-        user_metadata: {
-          is_virtual_author: true,
-          full_name: fullName
-        }
+        user_metadata: userMetadata
       });
 
     if (authError) {
       authFailure = {
-        message: `Auth 失敗：${formatSupabaseError(authError)}`,
+        message: appendPostgresLogHint(
+          `Auth 失敗：${formatSupabaseError(authError)}`
+        ),
         error: authError
       };
     } else if (!authData.user?.id) {
       authFailure = {
-        message: "Auth 失敗：建立 Auth 幽靈帳號成功，但 Supabase 未回傳 user.id。",
+        message: appendPostgresLogHint(
+          "Auth 失敗：建立 Auth 幽靈帳號成功，但 Supabase 未回傳 user.id。"
+        ),
         error: null
       };
     } else {
@@ -182,7 +242,7 @@ export async function createVirtualAuthor(formData: FormData) {
     }
   } catch (error) {
     authFailure = {
-      message: `Auth 失敗：${formatSupabaseError(error)}`,
+      message: appendPostgresLogHint(`Auth 失敗：${formatSupabaseError(error)}`),
       error
     };
   }
@@ -191,6 +251,7 @@ export async function createVirtualAuthor(formData: FormData) {
     console.error("[virtual-authors] Failed to create ghost auth user.", {
       stage: "auth.admin.createUser",
       email,
+      userMetadata,
       ...getSupabaseErrorLogFields(authFailure.error),
       error: authFailure.error
     });
@@ -198,6 +259,7 @@ export async function createVirtualAuthor(formData: FormData) {
   }
 
   virtualUserId = authUserId;
+  await waitForAuthTrigger();
 
   const profileFields = {
     role: "member",
@@ -247,18 +309,24 @@ export async function createVirtualAuthor(formData: FormData) {
 
     if (profileError) {
       profileFailure = {
-        message: `Profile upsert 失敗：${formatSupabaseError(profileError)}`,
+        message: appendPostgresLogHint(
+          `Profile upsert 失敗：${formatSupabaseError(profileError)}`
+        ),
         error: profileError
       };
     } else if (!upsertedProfile) {
       profileFailure = {
-        message: "Profile upsert 失敗：Supabase 未回傳 upsert 後的 profile.id。",
+        message: appendPostgresLogHint(
+          "Profile upsert 失敗：Supabase 未回傳 upsert 後的 profile.id。"
+        ),
         error: null
       };
     }
   } catch (error) {
     profileFailure = {
-      message: `Profile upsert 失敗：${formatSupabaseError(error)}`,
+      message: appendPostgresLogHint(
+        `Profile upsert 失敗：${formatSupabaseError(error)}`
+      ),
       error
     };
   }
