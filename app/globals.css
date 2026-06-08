@@ -21,7 +21,7 @@ body {
 
 @keyframes marquee {
   0% {
-    transform: translateX(100%);
+    transform: translateX(100vw);
   }
   100% {
     transform: translateX(-100%);
@@ -31,4 +31,5 @@ body {
 .animate-custom-marquee {
   display: inline-block;
   white-space: nowrap;
+  will-change: transform;
 }

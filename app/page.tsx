@@ -122,25 +122,27 @@ function AnnouncementBar({ placement }: { placement: PlatformPlacement | null })
   }
 
   return (
-    <div className="w-full overflow-hidden border-b border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+    <div className="flex w-full items-center overflow-hidden bg-blue-50 py-2 text-blue-800">
       <div
         className={
           placement.is_marquee
             ? "animate-custom-marquee"
-            : "mx-auto block w-full max-w-7xl text-center sm:px-6 lg:px-8"
+            : "block w-full text-center"
         }
         style={
           placement.is_marquee
-            ? { animation: `marquee ${placement.marquee_speed}s linear infinite` }
+            ? {
+                animation: `marquee ${placement.marquee_speed || 15}s linear infinite`
+              }
             : {}
         }
       >
         {placement.link_url ? (
-          <Link href={placement.link_url} className="font-medium hover:underline">
+          <Link href={placement.link_url} className="px-4 hover:underline">
             {placement.title}
           </Link>
         ) : (
-          <span className="font-medium">{placement.title}</span>
+          <span className="px-4">{placement.title}</span>
         )}
       </div>
     </div>
