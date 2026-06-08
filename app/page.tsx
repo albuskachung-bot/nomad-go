@@ -6,7 +6,6 @@ import {
   Clock3,
   Globe2,
   MapPin,
-  Megaphone,
   Signal,
   Sparkles,
   Star,
@@ -122,26 +121,29 @@ function AnnouncementBar({ placement }: { placement: PlatformPlacement | null })
     return null;
   }
 
-  const content = (
-    <div className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-      <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 sm:px-6 lg:px-8">
-        <Megaphone className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="font-medium">{placement.title}</span>
-        {placement.link_text ? (
-          <span className="font-semibold underline-offset-4">{placement.link_text}</span>
-        ) : null}
+  return (
+    <div className="w-full overflow-hidden border-b border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+      <div
+        className={
+          placement.is_marquee
+            ? "animate-custom-marquee"
+            : "mx-auto block w-full max-w-7xl text-center sm:px-6 lg:px-8"
+        }
+        style={
+          placement.is_marquee
+            ? { animation: `marquee ${placement.marquee_speed}s linear infinite` }
+            : {}
+        }
+      >
+        {placement.link_url ? (
+          <Link href={placement.link_url} className="font-medium hover:underline">
+            {placement.title}
+          </Link>
+        ) : (
+          <span className="font-medium">{placement.title}</span>
+        )}
       </div>
     </div>
-  );
-
-  if (!placement.link_url) {
-    return content;
-  }
-
-  return (
-    <Link href={placement.link_url} className="block">
-      {content}
-    </Link>
   );
 }
 

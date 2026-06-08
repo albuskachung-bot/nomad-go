@@ -30,6 +30,11 @@ function readLocation(value: FormDataEntryValue | null) {
     : null;
 }
 
+function readMarqueeSpeed(value: FormDataEntryValue | null) {
+  const speed = Number.parseInt(readText(value), 10);
+  return Number.isFinite(speed) && speed > 0 ? speed : 15;
+}
+
 function getImageExtension(file: File) {
   const extension = file.name.split(".").pop()?.toLowerCase();
 
@@ -61,6 +66,7 @@ export async function createPlacement(formData: FormData) {
   const location = readLocation(formData.get("location"));
   const title = readText(formData.get("title"));
   const sortOrder = Number.parseInt(readText(formData.get("sort_order")), 10);
+  const isMarquee = formData.get("is_marquee") === "on";
   const file = formData.get("image_file");
 
   if (!location || !title) {
@@ -96,6 +102,8 @@ export async function createPlacement(formData: FormData) {
     link_url: readOptionalText(formData.get("link_url")),
     link_text: readOptionalText(formData.get("link_text")),
     is_active: formData.get("is_active") === "on",
+    is_marquee: isMarquee,
+    marquee_speed: isMarquee ? readMarqueeSpeed(formData.get("marquee_speed")) : 15,
     sort_order: Number.isFinite(sortOrder) ? sortOrder : 0
   });
 

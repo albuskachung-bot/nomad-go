@@ -311,6 +311,8 @@ export type PlatformPlacement = {
   link_url: string | null;
   link_text: string | null;
   is_active: boolean;
+  is_marquee: boolean;
+  marquee_speed: number;
   sort_order: number;
 };
 

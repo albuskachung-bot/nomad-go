@@ -22,13 +22,17 @@ function PreviewBox({
   title,
   subtitle,
   buttonText,
-  previewImage
+  previewImage,
+  isMarquee,
+  marqueeSpeed
 }: {
   location: PlatformPlacementLocation;
   title: string;
   subtitle: string;
   buttonText: string;
   previewImage: string | null;
+  isMarquee: boolean;
+  marqueeSpeed: number;
 }) {
   const displayTitle = title || "版位標題預覽";
   const displaySubtitle = subtitle || "副標題會顯示在這裡";
@@ -89,7 +93,10 @@ function PreviewBox({
 
   return (
     <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-      <div className="flex items-center justify-center gap-2">
+      <div
+        className={isMarquee ? "animate-custom-marquee" : "flex items-center justify-center gap-2"}
+        style={isMarquee ? { animation: `marquee ${marqueeSpeed}s linear infinite` } : {}}
+      >
         <span className="font-medium">{displayTitle}</span>
         <span className="font-semibold underline-offset-4">{displayButtonText}</span>
       </div>
@@ -104,6 +111,8 @@ export default function PlacementForm() {
   const [subtitle, setSubtitle] = useState("");
   const [buttonText, setButtonText] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isMarquee, setIsMarquee] = useState(false);
+  const [marqueeSpeed, setMarqueeSpeed] = useState(15);
 
   useEffect(() => {
     return () => {
@@ -214,6 +223,33 @@ export default function PlacementForm() {
               />
               啟用
             </label>
+          </div>
+          <div className="flex items-end gap-4 lg:col-span-2">
+            <label className="flex items-center gap-2 pb-2 text-sm font-medium text-slate-700">
+              <input
+                name="is_marquee"
+                type="checkbox"
+                checked={isMarquee}
+                onChange={(event) => setIsMarquee(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+              />
+              啟用跑馬燈
+            </label>
+            {isMarquee ? (
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                滾動一圈所需秒數
+                <input
+                  name="marquee_speed"
+                  type="number"
+                  min={1}
+                  value={marqueeSpeed}
+                  onChange={(event) => setMarqueeSpeed(Number(event.target.value) || 15)}
+                  className="w-36 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                />
+              </label>
+            ) : null}
+          </div>
+          <div className="flex items-end">
             <button
               type="submit"
               className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-800"
@@ -234,6 +270,8 @@ export default function PlacementForm() {
             subtitle={subtitle}
             buttonText={buttonText}
             previewImage={previewImage}
+            isMarquee={isMarquee}
+            marqueeSpeed={marqueeSpeed}
           />
         </div>
       </form>
