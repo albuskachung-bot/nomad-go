@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import {
   ArrowUpRight,
   Building2,
@@ -7,6 +8,8 @@ import {
   SlidersHorizontal
 } from "lucide-react";
 import { filterJobs, getJobs } from "@/lib/data";
+import { createSupabasePublicServerClient } from "@/lib/supabase/server";
+import type { PlatformPlacement } from "@/lib/types";
 
 type JobsPageProps = {
   searchParams?: Promise<{
@@ -20,9 +23,73 @@ function readParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+async function getInFeedAds() {
+  const supabase = createSupabasePublicServerClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("platform_placements")
+    .select("*")
+    .eq("location", "in_feed_ad")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      return [];
+    }
+
+    console.error("[jobs] Unable to load in-feed ads.", error);
+    return [];
+  }
+
+  return (data ?? []) as PlatformPlacement[];
+}
+
+function InFeedAdCard({ ad }: { ad: PlatformPlacement }) {
+  const content = (
+    <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-4">
+      {ad.image_url ? (
+        <div
+          className="h-44 rounded-lg bg-cover bg-center"
+          style={{ backgroundImage: `url('${ad.image_url}')` }}
+          aria-hidden="true"
+        />
+      ) : null}
+      <div className={ad.image_url ? "mt-4" : ""}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+          Sponsored
+        </p>
+        <h3 className="mt-2 text-lg font-semibold text-gray-900">{ad.title}</h3>
+        {ad.subtitle ? (
+          <p className="mt-2 text-sm leading-6 text-gray-500">{ad.subtitle}</p>
+        ) : null}
+        {ad.link_text ? (
+          <span className="mt-4 inline-flex text-sm font-semibold text-blue-600">
+            {ad.link_text}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  if (!ad.link_url) {
+    return content;
+  }
+
+  return (
+    <Link href={ad.link_url} className="block">
+      {content}
+    </Link>
+  );
+}
+
 export default async function JobsPage({ searchParams }: JobsPageProps) {
   const params = searchParams ? await searchParams : {};
-  const allJobs = await getJobs();
+  const [allJobs, inFeedAds] = await Promise.all([getJobs(), getInFeedAds()]);
   const query = readParam(params.q) ?? "";
   const type = readParam(params.type) ?? "";
   const location = readParam(params.location) ?? "";
@@ -127,63 +194,69 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
           </div>
 
           <div className="grid gap-4">
-            {jobs.map((job) => (
-              <article
-                key={job.id}
-                className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div className="flex flex-col justify-between gap-5 md:flex-row">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-                        {job.job_type}
-                      </span>
-                      {job.salary_range ? (
-                        <span className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
-                          {job.salary_range}
-                        </span>
-                      ) : null}
-                    </div>
-                    <h3 className="mt-4 text-2xl font-semibold tracking-normal text-gray-900">
-                      <Link href={`/jobs/${job.id}`} className="hover:text-blue-600">
-                        {job.title}
-                      </Link>
-                    </h3>
-                    <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Building2 className="h-4 w-4" aria-hidden="true" />
-                        {job.company}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4" aria-hidden="true" />
-                        {job.location}
-                      </span>
-                    </div>
-                    <p className="mt-4 mb-4 line-clamp-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600">
-                      {job.description}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {job.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+            {jobs.map((job, index) => {
+              const adIndex = Math.floor(index / 5);
+              const ad = (index + 1) % 5 === 0 ? inFeedAds[adIndex] : null;
 
-                  <Link
-                    href={`/jobs/${job.id}`}
-                    className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-600"
-                  >
-                    查看詳情
-                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </div>
-              </article>
-            ))}
+              return (
+                <Fragment key={job.id}>
+                  <article className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft">
+                    <div className="flex flex-col justify-between gap-5 md:flex-row">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
+                            {job.job_type}
+                          </span>
+                          {job.salary_range ? (
+                            <span className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
+                              {job.salary_range}
+                            </span>
+                          ) : null}
+                        </div>
+                        <h3 className="mt-4 text-2xl font-semibold tracking-normal text-gray-900">
+                          <Link href={`/jobs/${job.id}`} className="hover:text-blue-600">
+                            {job.title}
+                          </Link>
+                        </h3>
+                        <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Building2 className="h-4 w-4" aria-hidden="true" />
+                            {job.company}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin className="h-4 w-4" aria-hidden="true" />
+                            {job.location}
+                          </span>
+                        </div>
+                        <p className="mt-4 mb-4 line-clamp-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600">
+                          {job.description}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {job.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <Link
+                        href={`/jobs/${job.id}`}
+                        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-600"
+                      >
+                        查看詳情
+                        <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </div>
+                  </article>
+
+                  {ad ? <InFeedAdCard ad={ad} /> : null}
+                </Fragment>
+              );
+            })}
           </div>
         </div>
       </section>

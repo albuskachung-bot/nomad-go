@@ -87,7 +87,7 @@ async function togglePlacementActive(formData: FormData) {
     redirect(`/admin/placements?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   revalidatePath("/admin/placements");
   redirect("/admin/placements?updated=1");
 }
@@ -108,7 +108,7 @@ async function deletePlacement(formData: FormData) {
     redirect(`/admin/placements?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   revalidatePath("/admin/placements");
   redirect("/admin/placements?deleted=1");
 }

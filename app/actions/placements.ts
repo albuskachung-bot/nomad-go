@@ -103,7 +103,7 @@ export async function createPlacement(formData: FormData) {
     redirect(`/admin/placements?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   revalidatePath("/admin/placements");
   redirect("/admin/placements?created=1");
 }
