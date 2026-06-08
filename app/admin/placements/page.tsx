@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { CircleAlert, LayoutPanelTop, Plus } from "lucide-react";
+import { CircleAlert, LayoutPanelTop } from "lucide-react";
+import PlacementForm from "@/app/admin/placements/components/PlacementForm";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { PlatformPlacement, PlatformPlacementLocation } from "@/lib/types";
@@ -27,19 +28,6 @@ type PlacementsResult = {
 
 function readText(value: FormDataEntryValue | null) {
   return value?.toString().trim() ?? "";
-}
-
-function readOptionalText(value: FormDataEntryValue | null) {
-  const text = readText(value);
-  return text.length > 0 ? text : null;
-}
-
-function readLocation(value: FormDataEntryValue | null) {
-  const location = readText(value);
-
-  return placementLocations.includes(location as PlatformPlacementLocation)
-    ? (location as PlatformPlacementLocation)
-    : null;
 }
 
 async function requirePlacementAdmin() {
@@ -77,38 +65,6 @@ async function getPlacements(): Promise<PlacementsResult> {
     placements: data ?? [],
     error: null
   };
-}
-
-async function createPlacement(formData: FormData) {
-  "use server";
-
-  const { supabase } = await requirePlacementAdmin();
-  const location = readLocation(formData.get("location"));
-  const title = readText(formData.get("title"));
-  const sortOrder = Number.parseInt(readText(formData.get("sort_order")), 10);
-
-  if (!location || !title) {
-    redirect("/admin/placements?error=missing-required-fields");
-  }
-
-  const { error } = await supabase.from("platform_placements").insert({
-    location,
-    title,
-    subtitle: readOptionalText(formData.get("subtitle")),
-    image_url: readOptionalText(formData.get("image_url")),
-    link_url: readOptionalText(formData.get("link_url")),
-    link_text: readOptionalText(formData.get("link_text")),
-    is_active: formData.get("is_active") === "on",
-    sort_order: Number.isFinite(sortOrder) ? sortOrder : 0
-  });
-
-  if (error) {
-    redirect(`/admin/placements?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/");
-  revalidatePath("/admin/placements");
-  redirect("/admin/placements?created=1");
 }
 
 async function togglePlacementActive(formData: FormData) {
@@ -198,90 +154,7 @@ export default async function AdminPlacementsPage({
         </div>
       ) : null}
 
-      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-        <div className="mb-5 flex items-center gap-2">
-          <Plus className="h-4 w-4 text-cyan-700" aria-hidden="true" />
-          <h2 className="font-semibold text-slate-900">新增版位</h2>
-        </div>
-        <form action={createPlacement} className="grid gap-4 lg:grid-cols-6">
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            位置
-            <select
-              name="location"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-              required
-            >
-              {placementLocations.map((location) => (
-                <option key={location} value={location}>
-                  {locationLabels[location]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 lg:col-span-2">
-            標題
-            <input
-              name="title"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-              required
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 lg:col-span-2">
-            副標題
-            <input
-              name="subtitle"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            排序
-            <input
-              name="sort_order"
-              type="number"
-              defaultValue={0}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 lg:col-span-2">
-            圖片 URL
-            <input
-              name="image_url"
-              type="url"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 lg:col-span-2">
-            連結 URL
-            <input
-              name="link_url"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            按鈕文字
-            <input
-              name="link_text"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-            />
-          </label>
-          <div className="flex items-end gap-4">
-            <label className="flex items-center gap-2 pb-2 text-sm font-medium text-slate-700">
-              <input
-                name="is_active"
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-              />
-              啟用
-            </label>
-            <button
-              type="submit"
-              className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-800"
-            >
-              新增版位
-            </button>
-          </div>
-        </form>
-      </section>
+      <PlacementForm />
 
       {groupedPlacements.map(({ location, items }) => (
         <section
