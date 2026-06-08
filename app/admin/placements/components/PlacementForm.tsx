@@ -1,9 +1,9 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
-import { ImageUp, Plus } from "lucide-react";
-import { createPlacement } from "@/app/actions/placements";
-import type { PlatformPlacementLocation } from "@/lib/types";
+import { ImageUp, Pencil, Plus } from "lucide-react";
+import { createPlacement, updatePlacement } from "@/app/actions/placements";
+import type { PlatformPlacement, PlatformPlacementLocation } from "@/lib/types";
 
 const placementLocations: PlatformPlacementLocation[] = [
   "announcement_bar",
@@ -104,19 +104,74 @@ function PreviewBox({
   );
 }
 
-export default function PlacementForm() {
+type PlacementFormProps = {
+  initialData?: PlatformPlacement | null;
+  onCancelEdit?: () => void;
+};
+
+const emptyFormState = {
+  location: "announcement_bar" as PlatformPlacementLocation,
+  title: "",
+  subtitle: "",
+  linkUrl: "",
+  buttonText: "",
+  previewImage: null as string | null,
+  isActive: false,
+  isMarquee: false,
+  marqueeSpeed: 15,
+  sortOrder: 0
+};
+
+export default function PlacementForm({
+  initialData = null,
+  onCancelEdit
+}: PlacementFormProps) {
+  const isEditing = Boolean(initialData);
   const [location, setLocation] =
     useState<PlatformPlacementLocation>("announcement_bar");
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const [buttonText, setButtonText] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(false);
   const [isMarquee, setIsMarquee] = useState(false);
   const [marqueeSpeed, setMarqueeSpeed] = useState(15);
+  const [sortOrder, setSortOrder] = useState(0);
+  const [imageInputKey, setImageInputKey] = useState(0);
+
+  useEffect(() => {
+    if (!initialData) {
+      setLocation(emptyFormState.location);
+      setTitle(emptyFormState.title);
+      setSubtitle(emptyFormState.subtitle);
+      setLinkUrl(emptyFormState.linkUrl);
+      setButtonText(emptyFormState.buttonText);
+      setPreviewImage(emptyFormState.previewImage);
+      setIsActive(emptyFormState.isActive);
+      setIsMarquee(emptyFormState.isMarquee);
+      setMarqueeSpeed(emptyFormState.marqueeSpeed);
+      setSortOrder(emptyFormState.sortOrder);
+      setImageInputKey((key) => key + 1);
+      return;
+    }
+
+    setLocation(initialData.location);
+    setTitle(initialData.title);
+    setSubtitle(initialData.subtitle ?? "");
+    setLinkUrl(initialData.link_url ?? "");
+    setButtonText(initialData.link_text ?? "");
+    setPreviewImage(initialData.image_url);
+    setIsActive(initialData.is_active);
+    setIsMarquee(initialData.is_marquee);
+    setMarqueeSpeed(initialData.marquee_speed ?? 15);
+    setSortOrder(initialData.sort_order);
+    setImageInputKey((key) => key + 1);
+  }, [initialData]);
 
   useEffect(() => {
     return () => {
-      if (previewImage) {
+      if (previewImage?.startsWith("blob:")) {
         URL.revokeObjectURL(previewImage);
       }
     };
@@ -126,7 +181,7 @@ export default function PlacementForm() {
     const file = event.target.files?.[0] ?? null;
 
     setPreviewImage((currentPreview) => {
-      if (currentPreview) {
+      if (currentPreview?.startsWith("blob:")) {
         URL.revokeObjectURL(currentPreview);
       }
 
@@ -134,13 +189,23 @@ export default function PlacementForm() {
     });
   }
 
+  const formAction =
+    initialData === null ? createPlacement : updatePlacement.bind(null, initialData.id);
+
   return (
     <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
       <div className="mb-5 flex items-center gap-2">
-        <Plus className="h-4 w-4 text-cyan-700" aria-hidden="true" />
-        <h2 className="font-semibold text-slate-900">新增版位</h2>
+        {isEditing ? (
+          <Pencil className="h-4 w-4 text-cyan-700" aria-hidden="true" />
+        ) : (
+          <Plus className="h-4 w-4 text-cyan-700" aria-hidden="true" />
+        )}
+        <h2 className="font-semibold text-slate-900">
+          {isEditing ? "編輯版位" : "新增版位"}
+        </h2>
       </div>
-      <form action={createPlacement}>
+      <form action={formAction}>
+        <input type="hidden" name="current_image_url" value={initialData?.image_url ?? ""} />
         <div className="grid gap-4 lg:grid-cols-6">
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">
             位置
@@ -184,13 +249,15 @@ export default function PlacementForm() {
             <input
               name="sort_order"
               type="number"
-              defaultValue={0}
+              value={sortOrder}
+              onChange={(event) => setSortOrder(Number(event.target.value) || 0)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             />
           </label>
           <label className="grid gap-1.5 text-sm font-medium text-slate-700 lg:col-span-2">
             圖片
             <input
+              key={imageInputKey}
               name="image_file"
               type="file"
               accept="image/*"
@@ -202,6 +269,8 @@ export default function PlacementForm() {
             連結 URL
             <input
               name="link_url"
+              value={linkUrl}
+              onChange={(event) => setLinkUrl(event.target.value)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
             />
           </label>
@@ -219,6 +288,8 @@ export default function PlacementForm() {
               <input
                 name="is_active"
                 type="checkbox"
+                checked={isActive}
+                onChange={(event) => setIsActive(event.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
               />
               啟用
@@ -249,13 +320,22 @@ export default function PlacementForm() {
               </label>
             ) : null}
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
             <button
               type="submit"
               className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-800"
             >
-              新增版位
+              {isEditing ? "更新版位" : "新增版位"}
             </button>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+              >
+                取消編輯
+              </button>
+            ) : null}
           </div>
         </div>
 
