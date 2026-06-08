@@ -92,9 +92,13 @@ function PreviewBox({
   }
 
   return (
-    <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+    <div className="relative w-full overflow-hidden rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
       <div
-        className={isMarquee ? "animate-custom-marquee" : "flex items-center justify-center gap-2"}
+        className={
+          isMarquee
+            ? "inline-block animate-custom-marquee whitespace-nowrap"
+            : "flex items-center justify-center gap-2"
+        }
         style={isMarquee ? { animation: `marquee ${marqueeSpeed}s linear infinite` } : {}}
       >
         <span className="font-medium">{displayTitle}</span>
