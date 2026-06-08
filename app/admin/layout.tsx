@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Briefcase,
   Building2,
+  ChevronDown,
   CreditCard,
   Crown,
   Home,
@@ -16,77 +18,106 @@ import {
   Users
 } from "lucide-react";
 
-const navItems = [
+const menuGroups = [
   {
-    href: "/admin",
-    label: "營運總覽",
-    helper: "Overview",
-    icon: LayoutDashboard
+    title: "主控台",
+    items: [
+      {
+        href: "/admin",
+        label: "營運總覽",
+        helper: "Overview",
+        icon: LayoutDashboard
+      }
+    ]
   },
   {
-    href: "/admin/employers",
-    label: "企業入駐清單",
-    helper: "Employers",
-    icon: Building2
+    title: "業務管理",
+    items: [
+      {
+        href: "/admin/employers",
+        label: "企業入駐清單",
+        helper: "Employers",
+        icon: Building2
+      },
+      {
+        href: "/admin/jobs",
+        label: "職缺資料庫",
+        helper: "Jobs Inventory / AI Review",
+        icon: Briefcase
+      }
+    ]
   },
   {
-    href: "/admin/jobs",
-    label: "職缺資料庫",
-    helper: "Jobs Inventory / AI Review",
-    icon: Briefcase
+    title: "內容與行銷",
+    items: [
+      {
+        href: "/admin/posts/create",
+        label: "官方專欄",
+        helper: "Column Editor",
+        icon: PenLine
+      },
+      {
+        href: "/admin/virtual-authors",
+        label: "虛擬作者",
+        helper: "Author Profiles",
+        icon: Users
+      },
+      {
+        href: "/admin/edm",
+        label: "EDM 電子報",
+        helper: "Campaigns",
+        icon: Mail
+      }
+    ]
   },
   {
-    href: "/admin/posts/create",
-    label: "官方專欄",
-    helper: "Column Editor",
-    icon: PenLine
+    title: "財務與方案",
+    items: [
+      {
+        href: "/admin/billing",
+        label: "財務與訂閱",
+        helper: "Billing & Finance",
+        icon: CreditCard
+      },
+      {
+        href: "/admin/companies",
+        label: "企業方案控制台",
+        helper: "Company Plan Overrides",
+        icon: Crown
+      },
+      {
+        href: "/admin/talents",
+        label: "人才方案控制台",
+        helper: "Talent Plan Overrides",
+        icon: Users
+      }
+    ]
   },
   {
-    href: "/admin/virtual-authors",
-    label: "虛擬作者",
-    helper: "Author Profiles",
-    icon: Users
-  },
-  {
-    href: "/admin/edm",
-    label: "EDM 電子報",
-    helper: "Campaigns",
-    icon: Mail
-  },
-  {
-    href: "/admin/billing",
-    label: "財務與訂閱",
-    helper: "Billing & Finance",
-    icon: CreditCard
-  },
-  {
-    href: "/admin/companies",
-    label: "企業方案控制台",
-    helper: "Company Plan Overrides",
-    icon: Crown
-  },
-  {
-    href: "/admin/talents",
-    label: "人才方案控制台",
-    helper: "Talent Plan Overrides",
-    icon: Users
-  },
-  {
-    href: "/admin/team",
-    label: "權限與團隊",
-    helper: "Team & Roles",
-    icon: UserCog
-  },
-  {
-    href: "/admin/settings",
-    label: "系統設定",
-    helper: "Settings",
-    icon: Settings
+    title: "系統管理",
+    items: [
+      {
+        href: "/admin/team",
+        label: "權限與團隊",
+        helper: "Team & Roles",
+        icon: UserCog
+      },
+      {
+        href: "/admin/settings",
+        label: "系統設定",
+        helper: "Settings",
+        icon: Settings
+      }
+    ]
   }
 ];
 
+const navItems = menuGroups.flatMap((group) => group.items);
+
 function isItemActive(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return href === "/admin"
+    ? pathname === href
+    : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function AdminLayout({
@@ -97,6 +128,32 @@ export default function AdminLayout({
   const pathname = usePathname();
   const isLoginPage =
     pathname === "/admin/login" || pathname.startsWith("/admin/login/");
+  const activeGroupTitle = menuGroups.find((group) =>
+    group.items.some((item) => isItemActive(pathname, item.href))
+  )?.title;
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(() =>
+    activeGroupTitle ? [activeGroupTitle] : ["主控台"]
+  );
+
+  useEffect(() => {
+    if (!activeGroupTitle) {
+      return;
+    }
+
+    setExpandedGroups((current) =>
+      current.includes(activeGroupTitle)
+        ? current
+        : [...current, activeGroupTitle]
+    );
+  }, [activeGroupTitle]);
+
+  function toggleGroup(title: string) {
+    setExpandedGroups((current) =>
+      current.includes(title)
+        ? current.filter((groupTitle) => groupTitle !== title)
+        : [...current, title]
+    );
+  }
 
   if (isLoginPage) {
     return children;
@@ -117,32 +174,74 @@ export default function AdminLayout({
           </p>
         </div>
 
-        <nav className="mt-8 grid gap-2" aria-label="營運後台導覽">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isItemActive(pathname, item.href);
+        <nav className="mt-8 grid gap-3" aria-label="營運後台導覽">
+          {menuGroups.map((group) => {
+            const isExpanded = expandedGroups.includes(group.title);
+            const isGroupActive = group.items.some((item) =>
+              isItemActive(pathname, item.href)
+            );
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-3 transition ${
-                  isActive
-                    ? "bg-cyan-500/15 text-white ring-1 ring-cyan-400/20"
-                    : "text-slate-200 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon
-                  className={`h-5 w-5 shrink-0 ${isActive ? "text-cyan-300" : ""}`}
-                  aria-hidden="true"
-                />
-                <span>
-                  <span className="block text-sm font-medium">{item.label}</span>
-                  <span className="mt-0.5 block text-[11px] text-slate-400">
-                    {item.helper}
-                  </span>
-                </span>
-              </Link>
+              <section key={group.title}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  aria-expanded={isExpanded}
+                  className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    isGroupActive
+                      ? "text-cyan-300"
+                      : "text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {group.title}
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${
+                      isExpanded ? "rotate-180" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                <div
+                  className={`overflow-hidden transition-all duration-200 ${
+                    isExpanded ? "mt-1 max-h-96 opacity-100" : "max-h-0 opacity-0"
+                  }`}
+                >
+                  <div className="grid gap-1">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = isItemActive(pathname, item.href);
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${
+                            isActive
+                              ? "bg-cyan-500/15 text-white ring-1 ring-cyan-400/20"
+                              : "text-slate-200 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <Icon
+                            className={`h-5 w-5 shrink-0 ${
+                              isActive ? "text-cyan-300" : ""
+                            }`}
+                            aria-hidden="true"
+                          />
+                          <span>
+                            <span className="block text-sm font-medium">
+                              {item.label}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] text-slate-400">
+                              {item.helper}
+                            </span>
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
             );
           })}
         </nav>
