@@ -13,9 +13,9 @@ import {
   Users,
   Wifi
 } from "lucide-react";
-import { getFeaturedJobs, getGuides, getSiteSettings } from "@/lib/data";
+import { getFeaturedJobs, getSiteSettings } from "@/lib/data";
 import { createSupabasePublicServerClient } from "@/lib/supabase/server";
-import type { PlatformPlacement } from "@/lib/types";
+import type { CityGuide, PlatformPlacement, TalentPool } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -27,30 +27,6 @@ export async function generateMetadata(): Promise<Metadata> {
     description: siteSettings.hero_subtitle
   };
 }
-
-const talents = [
-  {
-    name: "Ivy Chen",
-    role: "Product Designer",
-    timezone: "GMT+8",
-    availability: "每週 20 小時",
-    skills: ["SaaS UX", "Design System", "Research"]
-  },
-  {
-    name: "Marcus Lin",
-    role: "Full-stack Engineer",
-    timezone: "GMT+7 / GMT+8",
-    availability: "可全職遠端",
-    skills: ["Next.js", "Supabase", "API"]
-  },
-  {
-    name: "Nora Wang",
-    role: "Content Strategist",
-    timezone: "GMT+8",
-    availability: "專案制",
-    skills: ["SEO", "B2B", "Newsletter"]
-  }
-];
 
 async function getAnnouncementPlacement() {
   const supabase = createSupabasePublicServerClient();
@@ -78,6 +54,67 @@ async function getAnnouncementPlacement() {
   }
 
   return data as PlatformPlacement | null;
+}
+
+async function getHomeCityGuides() {
+  const supabase = createSupabasePublicServerClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("city_guides")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .limit(3);
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      return [];
+    }
+
+    console.error("[home] Unable to load city guides.", error);
+    return [];
+  }
+
+  return (data ?? []) as CityGuide[];
+}
+
+async function getHomeTalentPool() {
+  const supabase = createSupabasePublicServerClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("talent_pool")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .limit(3);
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      return [];
+    }
+
+    console.error("[home] Unable to load talent pool.", error);
+    return [];
+  }
+
+  return (data ?? []) as TalentPool[];
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function AnnouncementBar({ placement }: { placement: PlatformPlacement | null }) {
@@ -109,11 +146,13 @@ function AnnouncementBar({ placement }: { placement: PlatformPlacement | null })
 }
 
 export default async function HomePage() {
-  const [featuredJobs, guides, siteSettings, announcementPlacement] = await Promise.all([
+  const [featuredJobs, siteSettings, announcementPlacement, cityGuides, talentPool] =
+    await Promise.all([
     getFeaturedJobs(3),
-    getGuides(),
     getSiteSettings(),
-    getAnnouncementPlacement()
+    getAnnouncementPlacement(),
+    getHomeCityGuides(),
+    getHomeTalentPool()
   ]);
 
   return (
@@ -259,7 +298,7 @@ export default async function HomePage() {
           </div>
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {guides.slice(0, 3).map((guide) => (
+            {cityGuides.map((guide) => (
               <article
                 key={guide.id}
                 className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
@@ -267,7 +306,7 @@ export default async function HomePage() {
                 <div
                   className="h-44 bg-cover bg-center"
                   style={{
-                    backgroundImage: `url(${guide.cover_image_url ?? ""})`
+                    backgroundImage: `url(${guide.image_url})`
                   }}
                   aria-hidden="true"
                 />
@@ -275,28 +314,25 @@ export default async function HomePage() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-xl font-semibold text-gray-900">
-                        {guide.city}
+                        {guide.city_name}
                       </h3>
                       <p className="mt-1 text-sm text-gray-500">
-                        {guide.country} · {guide.region}
+                        {guide.country} · {guide.timezone}
                       </p>
                     </div>
                     <Star className="h-5 w-5 text-blue-600" aria-hidden="true" />
                   </div>
-                  <p className="mt-4 text-sm leading-6 text-gray-500">
-                    {guide.summary}
-                  </p>
                   <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg bg-gray-50 p-3">
                       <div className="text-gray-500">月預算</div>
                       <div className="mt-1 font-semibold text-gray-900">
-                        USD {guide.monthly_budget_usd?.toLocaleString() ?? "N/A"}
+                        {guide.budget_est}
                       </div>
                     </div>
                     <div className="rounded-lg bg-gray-50 p-3">
                       <div className="text-gray-500">網速</div>
                       <div className="mt-1 font-semibold text-gray-900">
-                        {guide.internet_speed_mbps ?? "N/A"} Mbps
+                        {guide.internet_speed}
                       </div>
                     </div>
                   </div>
@@ -318,7 +354,7 @@ export default async function HomePage() {
                 人才推薦
               </h2>
               <p className="mt-4 text-base leading-7 text-gray-500">
-                MVP 版本先提供精選人才展示區，後續可接 Supabase profile 與媒合流程。
+                精選可遠端協作的華語人才，依時區、可用工時與技能快速比較。
               </p>
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-gray-500">
                 <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-2">
@@ -337,26 +373,35 @@ export default async function HomePage() {
             </div>
 
             <div className="grid gap-4">
-              {talents.map((talent) => (
+              {talentPool.map((talent) => (
                 <article
-                  key={talent.name}
+                  key={talent.id}
                   className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 text-sm font-semibold text-blue-600">
-                        {talent.name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")}
-                      </div>
+                      {talent.avatar_url ? (
+                        <div
+                          className="h-12 w-12 rounded-lg bg-cover bg-center"
+                          style={{ backgroundImage: `url(${talent.avatar_url})` }}
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 text-sm font-semibold text-blue-600">
+                          {getInitials(talent.full_name)}
+                        </div>
+                      )}
                       <div>
-                        <h3 className="font-semibold text-gray-900">{talent.name}</h3>
-                        <p className="mt-1 text-sm text-gray-500">{talent.role}</p>
+                        <h3 className="font-semibold text-gray-900">
+                          {talent.full_name}
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {talent.job_title}
+                        </p>
                       </div>
                     </div>
                     <div className="text-sm text-gray-500">
-                      {talent.timezone} · {talent.availability}
+                      {talent.timezone} · {talent.available_hours}
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">

@@ -12,10 +12,12 @@ import {
   Home,
   LayoutDashboard,
   Mail,
+  Map,
   Megaphone,
   PenLine,
   Settings,
   UserCog,
+  UserRound,
   Users
 } from "lucide-react";
 
@@ -70,6 +72,18 @@ const menuGroups = [
         icon: Megaphone
       },
       {
+        href: "/admin/city-guides",
+        label: "城市指南管理",
+        helper: "City Guides",
+        icon: Map
+      },
+      {
+        href: "/admin/talents",
+        label: "人才庫管理",
+        helper: "Talent Pool",
+        icon: UserRound
+      },
+      {
         href: "/admin/edm",
         label: "EDM 電子報",
         helper: "Campaigns",
@@ -91,12 +105,6 @@ const menuGroups = [
         label: "企業方案控制台",
         helper: "Company Plan Overrides",
         icon: Crown
-      },
-      {
-        href: "/admin/talents",
-        label: "人才方案控制台",
-        helper: "Talent Plan Overrides",
-        icon: Users
       }
     ]
   },

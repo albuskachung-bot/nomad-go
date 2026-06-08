@@ -40,6 +40,18 @@ export type Guide = {
   created_at: string;
 };
 
+export type CityGuide = {
+  id: string;
+  city_name: string;
+  country: string;
+  budget_est: string;
+  internet_speed: string;
+  timezone: string;
+  image_url: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
 export type Tool = {
   id: string;
   name: string;
@@ -298,6 +310,18 @@ export type PlatformPlacement = {
   image_url: string | null;
   link_url: string | null;
   link_text: string | null;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export type TalentPool = {
+  id: string;
+  full_name: string;
+  job_title: string;
+  timezone: string;
+  available_hours: string;
+  skills: string[];
+  avatar_url: string | null;
   is_active: boolean;
   sort_order: number;
 };
@@ -605,6 +629,14 @@ export type Database = {
         Update: Partial<Guide>;
         Relationships: [];
       };
+      city_guides: {
+        Row: CityGuide;
+        Insert: Omit<CityGuide, "id"> & {
+          id?: string;
+        };
+        Update: Partial<CityGuide>;
+        Relationships: [];
+      };
       talents: {
         Row: Talent;
         Insert: Omit<Talent, "id" | "created_at" | "updated_at"> & {
@@ -613,6 +645,14 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Talent>;
+        Relationships: [];
+      };
+      talent_pool: {
+        Row: TalentPool;
+        Insert: Omit<TalentPool, "id"> & {
+          id?: string;
+        };
+        Update: Partial<TalentPool>;
         Relationships: [];
       };
       posts: {
