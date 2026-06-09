@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Globe2,
+  Lock,
   MapPin,
   UserRound,
   BriefcaseBusiness,
@@ -12,6 +13,7 @@ import {
   PenLine,
   type LucideIcon
 } from "lucide-react";
+import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Post, Profile } from "@/lib/types";
 
@@ -113,6 +115,73 @@ async function getPublishedArticles(profileId: string) {
   return (data ?? []) as PublishedArticle[];
 }
 
+async function canViewFullTalentProfile(profileId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return false;
+  }
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return false;
+  }
+
+  if (user.id === profileId) {
+    return true;
+  }
+
+  const workspace = await getEmployerWorkspaceContext(supabase, user.id);
+
+  if (!workspace.context) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("profile_views")
+    .select("id")
+    .eq("target_user_id", profileId)
+    .eq("viewer_company_id", workspace.context.company.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[talents/detail] Failed to verify profile unlock.", error);
+    return false;
+  }
+
+  return Boolean(data);
+}
+
+function TalentProfilePaywall() {
+  return (
+    <section className="rounded-lg border border-blue-100 bg-white p-7 shadow-sm ring-1 ring-gray-100">
+      <div className="flex items-start gap-4">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+          <Lock className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+            完整履歷已鎖定
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-gray-600">
+            公開頁面僅顯示人才摘要。企業需透過主動尋才頁解鎖後，才能查看完整自我介紹、作品集與進階合作資訊。
+          </p>
+          <Link
+            href="/employer/talents"
+            className="mt-5 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            前往主動尋才解鎖
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function TalentDetailPage({ params }: TalentDetailPageProps) {
   const { id } = await params;
   const profile = await getPublicTalentProfile(id);
@@ -122,6 +191,8 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
   }
 
   const publishedArticles = await getPublishedArticles(profile.id);
+  const canViewFullProfile =
+    profile.is_virtual_author === true || (await canViewFullTalentProfile(profile.id));
   const canRenderAuthorProfile =
     profile.is_public === true ||
     profile.is_virtual_author === true ||
@@ -133,6 +204,7 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
 
   const displayName = getDisplayName(profile);
   const skills = Array.isArray(profile.skills) ? profile.skills.filter(Boolean) : [];
+  const visibleSkills = canViewFullProfile ? skills : skills.slice(0, 3);
 
   return (
     <div className="bg-gray-50">
@@ -179,7 +251,7 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
               </div>
             </div>
 
-            {profile.portfolio_url ? (
+            {canViewFullProfile && profile.portfolio_url ? (
               <a
                 href={profile.portfolio_url}
                 target="_blank"
@@ -189,6 +261,14 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
                 查看作品集
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </a>
+            ) : profile.portfolio_url ? (
+              <Link
+                href="/employer/talents"
+                className="inline-flex w-fit items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+              >
+                <Lock className="h-4 w-4" aria-hidden="true" />
+                解鎖作品集
+              </Link>
             ) : null}
           </div>
         </div>
@@ -196,22 +276,26 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
         <div className="space-y-6">
-          <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
-            <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
-              自我介紹
-            </h2>
-            <p className="mt-5 whitespace-pre-line text-base leading-8 text-gray-600">
-              {profile.bio ?? "這位人才正在補齊自我介紹。"}
-            </p>
-          </section>
+          {canViewFullProfile ? (
+            <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
+              <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
+                自我介紹
+              </h2>
+              <p className="mt-5 whitespace-pre-line text-base leading-8 text-gray-600">
+                {profile.bio ?? "這位人才正在補齊自我介紹。"}
+              </p>
+            </section>
+          ) : (
+            <TalentProfilePaywall />
+          )}
 
           <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
             <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
               專業技能
             </h2>
-            {skills.length > 0 ? (
+            {visibleSkills.length > 0 ? (
               <div className="mt-5 flex flex-wrap gap-2">
-                {skills.map((skill) => (
+                {visibleSkills.map((skill) => (
                   <span
                     key={skill}
                     className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
@@ -219,6 +303,11 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
                     {skill}
                   </span>
                 ))}
+                {!canViewFullProfile && skills.length > visibleSkills.length ? (
+                  <span className="rounded-full border border-dashed border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    +{skills.length - visibleSkills.length} 個技能待解鎖
+                  </span>
+                ) : null}
               </div>
             ) : (
               <p className="mt-5 text-sm text-gray-500">尚未提供技能標籤。</p>
@@ -287,7 +376,13 @@ export default async function TalentDetailPage({ params }: TalentDetailPageProps
               <SummaryRow
                 icon={BriefcaseBusiness}
                 label="作品集"
-                value={profile.portfolio_url ? "已提供" : "尚未提供"}
+                value={
+                  profile.portfolio_url
+                    ? canViewFullProfile
+                      ? "已提供"
+                      : "解鎖後可見"
+                    : "尚未提供"
+                }
               />
             </dl>
           </div>

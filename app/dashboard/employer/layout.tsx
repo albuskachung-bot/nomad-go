@@ -15,6 +15,7 @@ import {
   LogOut,
   Mail,
   MessageSquareText,
+  Search,
   UserCog,
   Users,
   XCircle,
@@ -61,6 +62,12 @@ const navItems: NavItem[] = [
     label: "應徵者管理",
     helper: "Applicants",
     icon: Users
+  },
+  {
+    href: "/employer/talents",
+    label: "主動尋才",
+    helper: "Discover Talents",
+    icon: Search
   },
   {
     href: "/dashboard/employer/messages",

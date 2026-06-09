@@ -42,6 +42,10 @@ function isDashboardRoute(pathname: string) {
   return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 }
 
+function isEmployerRoute(pathname: string) {
+  return pathname === "/employer" || pathname.startsWith("/employer/");
+}
+
 function isProtectedAdminRoute(pathname: string) {
   return pathname.startsWith("/admin") && !isAdminLoginRoute(pathname);
 }
@@ -67,6 +71,10 @@ export async function middleware(request: NextRequest) {
 
     if (isProtectedAdminRoute(pathname)) {
       return redirectWithCookies(request, supabaseResponse, "/admin/login");
+    }
+
+    if (isEmployerRoute(pathname)) {
+      return redirectWithCookies(request, supabaseResponse, "/");
     }
 
     return supabaseResponse;
@@ -105,7 +113,7 @@ export async function middleware(request: NextRequest) {
       return redirectWithCookies(request, supabaseResponse, "/admin/login");
     }
 
-    if (isDashboardRoute(pathname) || isOnboardingRoute(pathname)) {
+    if (isDashboardRoute(pathname) || isEmployerRoute(pathname) || isOnboardingRoute(pathname)) {
       return supabaseResponse;
     }
 
@@ -117,7 +125,7 @@ export async function middleware(request: NextRequest) {
       return redirectWithCookies(request, supabaseResponse, "/admin/login");
     }
 
-    if (isDashboardRoute(pathname)) {
+    if (isDashboardRoute(pathname) || isEmployerRoute(pathname)) {
       return redirectWithCookies(request, supabaseResponse, "/");
     }
 
