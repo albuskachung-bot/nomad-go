@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft, Building2, Globe2, MapPin } from "lucide-react";
 import type { ReactNode } from "react";
+import DirectConnectButton from "@/components/jobs/DirectConnectButton";
 import JobApplyModal from "@/components/jobs/JobApplyModal";
+import JobInsightsPaywall from "@/components/jobs/JobInsightsPaywall";
 import { mockJobs } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Company, Job } from "@/lib/types";
@@ -166,8 +168,23 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
   const supabase = await createSupabaseServerClient();
   let job: Job | null = mockJobs.find((item) => item.id === id) ?? null;
   let company: Company | null = null;
+  let directConnectTokens = 0;
 
   if (supabase) {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("direct_connect_tokens")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      directConnectTokens = profile?.direct_connect_tokens ?? 0;
+    }
+
     const { data } = await supabase
       .from("jobs")
       .select("*")
@@ -209,6 +226,9 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
     );
   }
 
+  const companyName = company?.name ?? job.company_name ?? job.company ?? "未設定公司";
+  const jobType = job.job_type ?? job.employment_type ?? "遠端職缺";
+
   return (
     <main className="bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -220,7 +240,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
 
           <div className="mt-8">
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              {job.job_type}
+              {jobType}
             </span>
             <h1 className="mt-4 text-4xl font-semibold tracking-normal text-gray-900">
               {job.title}
@@ -228,7 +248,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
               <span className="inline-flex items-center gap-1.5">
                 <Building2 className="h-4 w-4" aria-hidden="true" />
-                {job.company}
+                {companyName}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <MapPin className="h-4 w-4" aria-hidden="true" />
@@ -238,11 +258,13 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
           </div>
 
           <div className="prose prose-blue mt-8 max-w-none prose-headings:tracking-normal prose-h2:text-2xl prose-h3:text-xl prose-p:leading-8 prose-li:leading-7">
-            {renderJobDescription(job.description)}
+            {renderJobDescription(job.description ?? "")}
           </div>
 
+          <JobInsightsPaywall />
+
           <div className="mt-8 flex flex-wrap gap-2">
-            {job.tags.map((tag) => (
+            {(job.tags ?? []).map((tag) => (
               <span key={tag} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
                 {tag}
               </span>
@@ -266,7 +288,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                 </span>
               )}
               <div>
-                <div className="font-semibold text-gray-900">{company?.name ?? job.company}</div>
+                <div className="font-semibold text-gray-900">{companyName}</div>
                 {company?.website ? (
                   <a
                     href={company.website}
@@ -285,12 +307,16 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
             ) : null}
           </div>
 
-          <JobApplyModal
-            jobId={job.id}
-            jobTitle={job.title}
-            companyName={company?.name ?? job.company}
-            screeningQuestions={job.screening_questions}
-          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <JobApplyModal
+              jobId={job.id}
+              jobTitle={job.title}
+              companyName={companyName}
+              screeningQuestions={job.screening_questions}
+              buttonClassName="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            />
+            <DirectConnectButton tokens={directConnectTokens} />
+          </div>
         </aside>
       </div>
     </main>

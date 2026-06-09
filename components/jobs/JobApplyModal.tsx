@@ -9,6 +9,7 @@ type JobApplyModalProps = {
   jobTitle: string;
   companyName: string;
   screeningQuestions?: string[] | null;
+  buttonClassName?: string;
 };
 
 type Toast = {
@@ -42,7 +43,8 @@ export default function JobApplyModal({
   jobId,
   jobTitle,
   companyName,
-  screeningQuestions = []
+  screeningQuestions = [],
+  buttonClassName = "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
 }: JobApplyModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -191,7 +193,7 @@ export default function JobApplyModal({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        className={buttonClassName}
       >
         <Send className="h-4 w-4" aria-hidden="true" />
         立即應徵

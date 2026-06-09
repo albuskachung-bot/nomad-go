@@ -1,4 +1,5 @@
 import { Bookmark, Eye, Send, type LucideIcon } from "lucide-react";
+import ProfileViewsCard from "@/components/dashboard/ProfileViewsCard";
 
 type StatCard = {
   title: string;
@@ -84,6 +85,8 @@ export default function MemberDashboardPage() {
           );
         })}
       </section>
+
+      <ProfileViewsCard />
     </div>
   );
 }

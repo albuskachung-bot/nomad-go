@@ -36,6 +36,14 @@ export type Transaction = {
   created_at: string;
 };
 
+export type ProfileView = {
+  id: string;
+  viewer_company_id: string;
+  viewer_company_name: string;
+  target_user_id: string;
+  viewed_at: string;
+};
+
 export type Guide = {
   id: string;
   city: string;
@@ -179,6 +187,8 @@ export type Profile = {
   is_public?: boolean;
   is_virtual_author?: boolean;
   subscription_plan?: TalentSubscriptionPlan;
+  plan_type?: "free" | "pro" | "vip" | string | null;
+  direct_connect_tokens?: number | null;
   plan_expires_at?: string | null;
   free_ai_usage_count?: number;
   quota_reset_date?: string | null;
@@ -596,6 +606,15 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Transaction>;
+        Relationships: [];
+      };
+      profile_views: {
+        Row: ProfileView;
+        Insert: Omit<ProfileView, "id" | "viewed_at"> & {
+          id?: string;
+          viewed_at?: string;
+        };
+        Update: Partial<ProfileView>;
         Relationships: [];
       };
       companies: {
