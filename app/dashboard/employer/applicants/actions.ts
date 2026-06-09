@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getEmployerWorkspaceContext, getWorkspaceErrorMessage } from "@/lib/employer-workspace";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   ApplicationStatus,
@@ -48,6 +49,60 @@ const applicationStatuses: ApplicationStatus[] = [
 
 function isApplicationStatus(value: string | undefined): value is ApplicationStatus {
   return Boolean(value && applicationStatuses.includes(value as ApplicationStatus));
+}
+
+const applicationStatusLabels: Record<ApplicationStatus, string> = {
+  pending: "待審核",
+  reviewed: "已檢視",
+  interview: "面試中",
+  rejected: "未錄取",
+  hired: "已錄取"
+};
+
+async function createApplicationStatusNotification({
+  applicationId,
+  companyId,
+  companyName,
+  jobId,
+  jobTitle,
+  nextStatus,
+  userId
+}: {
+  applicationId: string;
+  companyId: string;
+  companyName: string;
+  jobId: string;
+  jobTitle: string;
+  nextStatus: ApplicationStatus;
+  userId: string;
+}) {
+  const supabaseAdmin = createSupabaseAdminClient();
+
+  if (!supabaseAdmin) {
+    console.warn("[employer-applicants] Missing service role; skipped application status notification.");
+    return;
+  }
+
+  const statusLabel = applicationStatusLabels[nextStatus];
+  const { error } = await supabaseAdmin.from("notifications").insert({
+    user_id: userId,
+    type: "application_status",
+    title: "你的應徵狀態已更新",
+    message: `${companyName} 已將你應徵「${jobTitle}」的狀態更新為「${statusLabel}」。`,
+    link_url: `/dashboard/nomad/applications/messages?application_id=${encodeURIComponent(applicationId)}`,
+    metadata: {
+      application_id: applicationId,
+      company_id: companyId,
+      company_name: companyName,
+      job_id: jobId,
+      job_title: jobTitle,
+      status: nextStatus
+    }
+  });
+
+  if (error) {
+    console.error("[employer-applicants] Failed to create application status notification.", error);
+  }
 }
 
 function normalizeUnlockReason(value: string | null | undefined): UnlockApplicantReason {
@@ -137,7 +192,7 @@ export async function updateEmployerApplicationReview(formData: FormData): Promi
 
   const { data: application, error: applicationError } = await supabase
     .from("applications")
-    .select("id, job_id")
+    .select("id, job_id, user_id, status")
     .eq("id", applicationId)
     .maybeSingle();
 
@@ -157,7 +212,7 @@ export async function updateEmployerApplicationReview(formData: FormData): Promi
 
   const { data: job, error: jobError } = await supabase
     .from("jobs")
-    .select("id, company_id, employer_id")
+    .select("id, title, company, company_name, company_id, employer_id")
     .eq("id", application.job_id)
     .maybeSingle();
 
@@ -179,6 +234,8 @@ export async function updateEmployerApplicationReview(formData: FormData): Promi
     };
   }
 
+  const shouldNotifyApplicant = application.status !== nextStatus;
+
   const { error } = await supabase
     .from("applications")
     .update({
@@ -194,7 +251,21 @@ export async function updateEmployerApplicationReview(formData: FormData): Promi
     };
   }
 
+  if (shouldNotifyApplicant) {
+    await createApplicationStatusNotification({
+      applicationId,
+      companyId: workspace.context.company.id,
+      companyName: workspace.context.company.name || job.company_name || job.company || "企業雇主",
+      jobId: application.job_id,
+      jobTitle: job.title || "應徵職缺",
+      nextStatus,
+      userId: application.user_id
+    });
+  }
+
   revalidatePath("/dashboard/employer/applicants");
+  revalidatePath("/dashboard/nomad/applications");
+  revalidatePath("/dashboard/nomad/applications/messages");
 
   return {
     ok: true,

@@ -135,7 +135,7 @@ export default function EmployerTeamClient({
       setEmail("");
       setToast({
         type: "success",
-        message: `${result.message} MVP 階段已建立邀請票券。`
+        message: result.message
       });
     });
   }
@@ -254,7 +254,7 @@ export default function EmployerTeamClient({
             <div>
               <h2 className="text-base font-semibold text-slate-950">邀請新成員</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                支援公開連結與指定 Email 邀請；目前 Email 邀請為 MVP mock，不寄真實郵件。
+                支援公開連結與指定 Email 邀請；Email 會寄出可接受邀請的 7 天效期連結。
               </p>
             </div>
           </div>

@@ -44,6 +44,18 @@ export type ProfileView = {
   viewed_at: string;
 };
 
+export type Notification = {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  link_url: string | null;
+  metadata: Record<string, unknown>;
+  is_read: boolean;
+  created_at: string;
+};
+
 export type Guide = {
   id: string;
   city: string;
@@ -615,6 +627,16 @@ export type Database = {
           viewed_at?: string;
         };
         Update: Partial<ProfileView>;
+        Relationships: [];
+      };
+      notifications: {
+        Row: Notification;
+        Insert: Omit<Notification, "id" | "created_at" | "is_read"> & {
+          id?: string;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Notification>;
         Relationships: [];
       };
       companies: {

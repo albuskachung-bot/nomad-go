@@ -21,6 +21,11 @@ type Toast = {
   message: string;
 };
 
+type CheckoutResponse = {
+  url?: string;
+  error?: string;
+};
+
 type PlanCard = {
   id: CompanySubscriptionPlan;
   name: string;
@@ -84,10 +89,42 @@ export default function BillingPlanCards({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  async function startEmployerCheckout(plan: Exclude<CompanySubscriptionPlan, "free">) {
+    const response = await fetch("/api/employer/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ planId: plan })
+    });
+    const data = (await response.json().catch(() => ({}))) as CheckoutResponse;
+
+    if (!response.ok || !data.url) {
+      throw new Error(data.error ?? "無法建立 Stripe Checkout，請稍後再試。");
+    }
+
+    window.location.assign(data.url);
+  }
+
   function submitPlanChange(plan: CompanySubscriptionPlan) {
     setPendingPlan(plan);
 
     startTransition(() => {
+      if (plan !== "free") {
+        void startEmployerCheckout(plan)
+          .catch((error: unknown) => {
+            setToast({
+              type: "error",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "方案結帳啟動失敗，請稍後再試。"
+            });
+          })
+          .finally(() => setPendingPlan(null));
+        return;
+      }
+
       void requestEmployerPlanChange(plan)
         .then((result) => {
           setToast({
