@@ -1,9 +1,8 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import type { User } from "@supabase/supabase-js";
-import { canManageSiteSettings, isAdminRole, type AdminRole } from "@/lib/admin-auth";
+import { isAdminRole, type AdminRole } from "@/lib/admin-auth";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { platformApiSettingKeys } from "@/lib/platform-settings";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -296,82 +295,6 @@ export async function updateAdminContentItem(formData: FormData) {
   return {
     ok: true,
     message: "已更新。"
-  };
-}
-
-export async function updateSiteSettings(formData: FormData) {
-  const context = await requireAdmin();
-  const { supabase, profile } = context;
-
-  if (!canManageSiteSettings(profile?.role)) {
-    return {
-      ok: false,
-      message: "只有 Super Admin 可以更新全站設定。"
-    };
-  }
-
-  const heroTitle = formData.get("hero_title")?.toString().trim();
-  const heroSubtitle = formData.get("hero_subtitle")?.toString().trim();
-  const currentHeroImageUrl = formData.get("current_hero_image_url")?.toString().trim() ?? "";
-  const heroImage = formData.get("hero_image");
-
-  if (!heroTitle || !heroSubtitle) {
-    return {
-      ok: false,
-      message: "請填寫主標題與副標題。"
-    };
-  }
-
-  let heroImageUrl = currentHeroImageUrl;
-
-  if (heroImage instanceof File && heroImage.size > 0) {
-    const extension = heroImage.name.split(".").pop()?.toLowerCase() ?? "jpg";
-    const filePath = `hero/${Date.now()}-${randomUUID()}.${extension}`;
-    const fileBuffer = Buffer.from(await heroImage.arrayBuffer());
-
-    const { error: uploadError } = await supabase.storage
-      .from("public-assets")
-      .upload(filePath, fileBuffer, {
-        contentType: heroImage.type || "application/octet-stream",
-        upsert: false
-      });
-
-    if (uploadError) {
-      return {
-        ok: false,
-        message: uploadError.message
-      };
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("public-assets")
-      .getPublicUrl(filePath);
-
-    heroImageUrl = publicUrlData.publicUrl;
-  }
-
-  const { error } = await supabase
-    .from("site_settings")
-    .update({
-      hero_title: heroTitle,
-      hero_subtitle: heroSubtitle,
-      hero_image_url: heroImageUrl
-    })
-    .eq("id", 1);
-
-  if (error) {
-    return {
-      ok: false,
-      message: error.message
-    };
-  }
-
-  revalidatePath("/admin/settings");
-  revalidatePath("/");
-
-  return {
-    ok: true,
-    message: "首頁設定已更新。"
   };
 }
 

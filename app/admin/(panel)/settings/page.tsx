@@ -61,7 +61,7 @@ export default async function AdminSettingsPage() {
             全站設定 CMS
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-            修改首頁 Hero 文案、背景圖片、Footer 平台簡介、聯絡信箱與社群連結。圖片會上傳到 Supabase Storage 的 public-assets bucket。
+            修改 Footer 平台簡介、聯絡信箱與社群連結。首頁 Hero Banner 請至全站動態版位管理。
           </p>
         </div>
       </div>

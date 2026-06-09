@@ -2,6 +2,7 @@ export type Job = {
   id: string;
   title: string;
   company: string;
+  company_name?: string | null;
   location: string;
   job_type: string;
   category: string | null;
@@ -21,6 +22,17 @@ export type Job = {
   company_id?: string | null;
   rejection_reason: string | null;
   status: ContentStatus;
+  created_at: string;
+};
+
+export type Transaction = {
+  id: string;
+  transaction_id: string;
+  company_name: string;
+  tax_id: string | null;
+  plan_name: string | null;
+  amount: number;
+  status: string;
   created_at: string;
 };
 
@@ -575,6 +587,15 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Job>;
+        Relationships: [];
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: Omit<Transaction, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Transaction>;
         Relationships: [];
       };
       companies: {

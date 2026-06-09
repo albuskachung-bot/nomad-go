@@ -26,7 +26,6 @@ import type {
 } from "@/lib/platform-settings";
 
 type BillingTab = "transactions" | "invoices" | "gateway";
-type TransactionStatus = "Success" | "Failed" | "Refunded";
 type InvoiceStatus = "Issued" | "Pending" | "Voided";
 type Notice = {
   type: "success" | "error";
@@ -40,7 +39,7 @@ type Transaction = {
   taxId: string;
   plan: string;
   amount: string;
-  status: TransactionStatus;
+  status: string;
 };
 
 type Invoice = {
@@ -55,51 +54,13 @@ type BillingConsoleProps = {
   initialApiSettings: PlatformApiSettings;
   canManageApiSettings: boolean;
   settingsLoadError: string | null;
+  transactions: Transaction[];
 };
 
 const tabs: Array<{ id: BillingTab; label: string; icon: typeof CreditCard }> = [
   { id: "transactions", label: "交易與訂閱紀錄", icon: CreditCard },
   { id: "invoices", label: "發票管理", icon: FileText },
   { id: "gateway", label: "金流與 API 狀態", icon: Activity }
-];
-
-const transactions: Transaction[] = [
-  {
-    id: "TXN-20260527-0281",
-    paidAt: "2026/05/27 10:42",
-    company: "Cloud Harbor 科技股份有限公司",
-    taxId: "83124790 / Cloud Harbor",
-    plan: "VIP Annual",
-    amount: "NT$ 168,000",
-    status: "Success"
-  },
-  {
-    id: "TXN-20260526-0274",
-    paidAt: "2026/05/26 16:18",
-    company: "遠景人才顧問有限公司",
-    taxId: "54398216 / 遠景人才",
-    plan: "Pro Monthly",
-    amount: "NT$ 12,800",
-    status: "Success"
-  },
-  {
-    id: "TXN-20260525-0269",
-    paidAt: "2026/05/25 09:03",
-    company: "Orbit Workspaces Inc.",
-    taxId: "N/A / Orbit Workspaces",
-    plan: "Pro Monthly",
-    amount: "NT$ 12,800",
-    status: "Failed"
-  },
-  {
-    id: "TXN-20260523-0256",
-    paidAt: "2026/05/23 14:31",
-    company: "Async Finance 台灣分公司",
-    taxId: "90246815 / Async Finance",
-    plan: "VIP Monthly",
-    amount: "NT$ 18,800",
-    status: "Refunded"
-  }
 ];
 
 const invoices: Invoice[] = [
@@ -133,10 +94,11 @@ const invoices: Invoice[] = [
   }
 ];
 
-const transactionStyles: Record<TransactionStatus, string> = {
+const transactionStyles: Record<string, string> = {
   Success: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   Failed: "bg-rose-50 text-rose-700 ring-rose-200",
-  Refunded: "bg-amber-50 text-amber-700 ring-amber-200"
+  Refunded: "bg-amber-50 text-amber-700 ring-amber-200",
+  Pending: "bg-slate-100 text-slate-600 ring-slate-200"
 };
 
 const invoiceStyles: Record<InvoiceStatus, string> = {
@@ -154,7 +116,8 @@ const invoiceLabels: Record<InvoiceStatus, string> = {
 export default function BillingConsole({
   initialApiSettings,
   canManageApiSettings,
-  settingsLoadError
+  settingsLoadError,
+  transactions
 }: BillingConsoleProps) {
   const [activeTab, setActiveTab] = useState<BillingTab>("transactions");
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -206,7 +169,7 @@ export default function BillingConsole({
           </p>
         </div>
         <span className="inline-flex w-fit rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 ring-1 ring-cyan-100">
-          Finance sandbox / Mock data
+          Live transactions / Sandbox APIs
         </span>
       </section>
 
@@ -272,7 +235,10 @@ export default function BillingConsole({
         </div>
 
         {activeTab === "transactions" ? (
-          <TransactionsPanel onDownload={() => showMockNotice("下載對帳單")} />
+          <TransactionsPanel
+            transactions={transactions}
+            onDownload={() => showMockNotice("下載對帳單")}
+          />
         ) : null}
         {activeTab === "invoices" ? (
           <InvoicesPanel onManualIssue={() => showMockNotice("手動補開發票")} />
@@ -296,7 +262,13 @@ export default function BillingConsole({
   );
 }
 
-function TransactionsPanel({ onDownload }: { onDownload: () => void }) {
+function TransactionsPanel({
+  transactions,
+  onDownload
+}: {
+  transactions: Transaction[];
+  onDownload: () => void;
+}) {
   return (
     <div
       id="billing-panel-transactions"
@@ -347,7 +319,9 @@ function TransactionsPanel({ onDownload }: { onDownload: () => void }) {
                 </td>
                 <td className="px-5 py-4">
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${transactionStyles[transaction.status]}`}
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                      transactionStyles[transaction.status] ?? transactionStyles.Pending
+                    }`}
                   >
                     {transaction.status}
                   </span>

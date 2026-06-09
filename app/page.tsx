@@ -12,9 +12,9 @@ import {
   Users,
   Wifi
 } from "lucide-react";
-import { getFeaturedJobs, getSiteSettings } from "@/lib/data";
+import { getSiteSettings } from "@/lib/data";
 import { createSupabasePublicServerClient } from "@/lib/supabase/server";
-import type { CityGuide, PlatformPlacement, TalentPool } from "@/lib/types";
+import type { CityGuide, Job, PlatformPlacement, TalentPool } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +107,32 @@ async function getHomeTalentPool() {
   return (data ?? []) as TalentPool[];
 }
 
+async function getHomeFeaturedJobs() {
+  const supabase = createSupabasePublicServerClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      return [];
+    }
+
+    console.error("[home] Unable to load featured jobs.", error);
+    return [];
+  }
+
+  return (data ?? []) as Job[];
+}
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -152,7 +178,7 @@ function AnnouncementBar({ placement }: { placement: PlatformPlacement | null })
 export default async function HomePage() {
   const [featuredJobs, siteSettings, announcementPlacement, cityGuides, talentPool] =
     await Promise.all([
-    getFeaturedJobs(3),
+    getHomeFeaturedJobs(),
     getSiteSettings(),
     getAnnouncementPlacement(),
     getHomeCityGuides(),
@@ -248,42 +274,52 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {featuredJobs.map((job) => (
-              <article
-                key={job.id}
-                className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
-                    <p className="mt-1 text-sm text-gray-500">{job.company}</p>
+          {featuredJobs.length > 0 ? (
+            <div className="mt-10 grid gap-5 md:grid-cols-3">
+              {featuredJobs.map((job) => (
+                <article
+                  key={job.id}
+                  className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {job.company_name ?? job.company ?? "未設定公司"}
+                      </p>
+                    </div>
+                    <Briefcase className="h-5 w-5 text-blue-600" aria-hidden="true" />
                   </div>
-                  <Briefcase className="h-5 w-5 text-blue-600" aria-hidden="true" />
-                </div>
-                <p className="mt-4 line-clamp-3 text-sm leading-6 text-gray-500">
-                  {job.description}
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {job.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600"
-                    >
-                      {tag}
+                  <p className="mt-4 line-clamp-3 text-sm leading-6 text-gray-500">
+                    {job.description ?? "此職缺尚未提供詳細描述。"}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {(job.tags ?? []).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-5 text-sm text-gray-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4" aria-hidden="true" />
+                      {job.location ?? "Remote"}
                     </span>
-                  ))}
-                </div>
-                <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-5 text-sm text-gray-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4" aria-hidden="true" />
-                    {job.location}
-                  </span>
-                  <span className="font-medium text-gray-900">{job.job_type}</span>
-                </div>
-              </article>
-            ))}
-          </div>
+                    <span className="font-medium text-gray-900">
+                      {job.job_type ?? job.employment_type ?? "遠端職缺"}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-6 py-12 text-center text-sm text-gray-500">
+              目前尚無精選職缺
+            </div>
+          )}
         </div>
       </section>
 

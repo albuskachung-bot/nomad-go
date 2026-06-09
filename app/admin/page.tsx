@@ -5,43 +5,44 @@ import { getCurrentAdminContext } from "@/lib/admin";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const operationalCards = [
-  {
-    title: "平台總會員數",
-    value: "28,460",
-    change: "+12.4%",
-    description: "較上月新增 3,142 位註冊會員",
-    icon: Users,
-    accent: "bg-blue-50 text-blue-700"
-  },
-  {
-    title: "營運中職缺總數",
-    value: "1,284",
-    change: "+6.8%",
-    description: "目前公開且接受申請中的職缺",
-    icon: Briefcase,
-    accent: "bg-indigo-50 text-indigo-700"
-  },
-  {
-    title: "待 AI 審核任務數",
-    value: "37",
-    change: "待串接",
-    description: "預留自動風險檢查與內容品質審核佇列",
-    icon: Bot,
-    accent: "bg-amber-50 text-amber-700"
-  },
-  {
-    title: "本月訂閱預估收入 (MRR)",
-    value: "NT$ 2,480,000",
-    change: "+18.2%",
-    description: "依活躍企業方案估算之月 recurring revenue",
-    icon: Banknote,
-    accent: "bg-emerald-50 text-emerald-700"
+type SupabaseClient = NonNullable<Awaited<ReturnType<typeof getCurrentAdminContext>>["supabase"]>;
+
+function formatCount(value: number) {
+  return new Intl.NumberFormat("zh-TW").format(value);
+}
+
+async function getOperationalMetrics(supabase: SupabaseClient | null) {
+  if (!supabase) {
+    return {
+      membersCount: 0,
+      jobsCount: 0
+    };
   }
-];
+
+  const [profilesResult, jobsResult] = await Promise.all([
+    supabase.from("profiles").select("*", { count: "exact", head: true }),
+    supabase
+      .from("jobs")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "published")
+  ]);
+
+  if (profilesResult.error) {
+    console.error("[admin] Unable to count profiles.", profilesResult.error);
+  }
+
+  if (jobsResult.error) {
+    console.error("[admin] Unable to count published jobs.", jobsResult.error);
+  }
+
+  return {
+    membersCount: profilesResult.count ?? 0,
+    jobsCount: jobsResult.count ?? 0
+  };
+}
 
 export default async function AdminDashboardPage() {
-  const { user, isAdmin } = await getCurrentAdminContext();
+  const { user, isAdmin, supabase } = await getCurrentAdminContext();
 
   if (!user) {
     redirect("/admin/login");
@@ -50,6 +51,42 @@ export default async function AdminDashboardPage() {
   if (!isAdmin) {
     redirect("/");
   }
+
+  const { membersCount, jobsCount } = await getOperationalMetrics(supabase);
+  const operationalCards = [
+    {
+      title: "平台總會員數",
+      value: formatCount(membersCount),
+      change: "Live",
+      description: "public.profiles 目前總筆數",
+      icon: Users,
+      accent: "bg-blue-50 text-blue-700"
+    },
+    {
+      title: "營運中職缺總數",
+      value: formatCount(jobsCount),
+      change: "Live",
+      description: "目前公開且接受申請中的職缺",
+      icon: Briefcase,
+      accent: "bg-indigo-50 text-indigo-700"
+    },
+    {
+      title: "待 AI 審核任務數",
+      value: "0",
+      change: "待串接",
+      description: "預留自動風險檢查與內容品質審核佇列",
+      icon: Bot,
+      accent: "bg-amber-50 text-amber-700"
+    },
+    {
+      title: "本月訂閱預估收入 (MRR)",
+      value: "NT$ 0",
+      change: "待串接",
+      description: "依活躍企業方案估算之月 recurring revenue",
+      icon: Banknote,
+      accent: "bg-emerald-50 text-emerald-700"
+    }
+  ];
 
   return (
     <div className="space-y-8">
@@ -62,11 +99,11 @@ export default async function AdminDashboardPage() {
             營運數據總覽
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            追蹤平台規模、內容審核與訂閱營收；現階段顯示介面驗證用資料。
+            追蹤平台規模、內容審核與訂閱營收。
           </p>
         </div>
         <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-          Mock data / API pending
+          Live data
         </span>
       </section>
 
