@@ -374,9 +374,20 @@ export const mockTalentProfiles: Profile[] = [
   }
 ];
 
+function getDevelopmentMockData<T>(data: T, message: string): T {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 export async function getJobs() {
   if (!supabase) {
-    return mockJobs.filter((job) => job.status === "published");
+    return getDevelopmentMockData(
+      mockJobs.filter((job) => job.status === "published"),
+      "Supabase is not configured. Production cannot use mock jobs."
+    );
   }
 
   const { data, error } = await supabase
@@ -387,7 +398,10 @@ export async function getJobs() {
 
   if (error || !data) {
     console.error("Failed to fetch jobs from Supabase:", error?.message);
-    return mockJobs;
+    return getDevelopmentMockData(
+      mockJobs.filter((job) => job.status === "published"),
+      "Failed to fetch production jobs from Supabase."
+    );
   }
 
   return data;
@@ -395,9 +409,12 @@ export async function getJobs() {
 
 export async function getFeaturedJobs(limit = 3) {
   if (!supabase) {
-    return mockJobs
-      .filter((job) => job.is_featured && job.status === "published")
-      .slice(0, limit);
+    return getDevelopmentMockData(
+      mockJobs
+        .filter((job) => job.is_featured && job.status === "published")
+        .slice(0, limit),
+      "Supabase is not configured. Production cannot use mock featured jobs."
+    );
   }
 
   const { data, error } = await supabase
@@ -410,22 +427,31 @@ export async function getFeaturedJobs(limit = 3) {
 
   if (error) {
     console.error("Failed to fetch featured jobs from Supabase:", error);
-    return mockJobs
-      .filter((job) => job.is_featured && job.status === "published")
-      .slice(0, limit);
+    return getDevelopmentMockData(
+      mockJobs
+        .filter((job) => job.is_featured && job.status === "published")
+        .slice(0, limit),
+      "Failed to fetch production featured jobs from Supabase."
+    );
   }
 
   if (!data) {
     console.error("Failed to fetch featured jobs from Supabase: no data returned");
-    return mockJobs
-      .filter((job) => job.is_featured && job.status === "published")
-      .slice(0, limit);
+    return getDevelopmentMockData(
+      mockJobs
+        .filter((job) => job.is_featured && job.status === "published")
+        .slice(0, limit),
+      "No production featured jobs were returned from Supabase."
+    );
   }
 
   if (data.length === 0) {
-    return mockJobs
-      .filter((job) => job.is_featured && job.status === "published")
-      .slice(0, limit);
+    return getDevelopmentMockData(
+      mockJobs
+        .filter((job) => job.is_featured && job.status === "published")
+        .slice(0, limit),
+      "Production featured jobs are empty. Mock featured jobs are disabled."
+    );
   }
 
   return data;
@@ -433,7 +459,10 @@ export async function getFeaturedJobs(limit = 3) {
 
 export async function getGuides() {
   if (!supabase) {
-    return mockGuides;
+    return getDevelopmentMockData(
+      mockGuides,
+      "Supabase is not configured. Production cannot use mock guides."
+    );
   }
 
   const { data, error } = await supabase
@@ -444,7 +473,10 @@ export async function getGuides() {
 
   if (error || !data) {
     console.error("Failed to fetch guides from Supabase:", error?.message);
-    return mockGuides;
+    return getDevelopmentMockData(
+      mockGuides,
+      "Failed to fetch production guides from Supabase."
+    );
   }
 
   return data;
@@ -452,7 +484,10 @@ export async function getGuides() {
 
 export async function getTalents() {
   if (!supabase) {
-    return mockTalents;
+    return getDevelopmentMockData(
+      mockTalents,
+      "Supabase is not configured. Production cannot use mock talents."
+    );
   }
 
   const { data, error } = await supabase
@@ -462,7 +497,10 @@ export async function getTalents() {
 
   if (error || !data) {
     console.error("Failed to fetch talents from Supabase:", error?.message);
-    return mockTalents;
+    return getDevelopmentMockData(
+      mockTalents,
+      "Failed to fetch production talents from Supabase."
+    );
   }
 
   return data;
@@ -494,7 +532,10 @@ export async function getTalentProfiles() {
     });
 
   if (!supabase) {
-    return sortProfiles(mockTalentProfiles.filter((profile) => profile.status === "published"));
+    return getDevelopmentMockData(
+      sortProfiles(mockTalentProfiles.filter((profile) => profile.status === "published")),
+      "Supabase is not configured. Production cannot use mock talent profiles."
+    );
   }
 
   const { data, error } = await supabase
@@ -507,7 +548,10 @@ export async function getTalentProfiles() {
 
   if (error || !data) {
     console.error("Failed to fetch talent profiles from Supabase:", error?.message);
-    return sortProfiles(mockTalentProfiles);
+    return getDevelopmentMockData(
+      sortProfiles(mockTalentProfiles.filter((profile) => profile.status === "published")),
+      "Failed to fetch production talent profiles from Supabase."
+    );
   }
 
   return sortProfiles(data);
@@ -515,7 +559,10 @@ export async function getTalentProfiles() {
 
 export async function getSiteSettings() {
   if (!supabase) {
-    return mockSiteSettings;
+    return getDevelopmentMockData(
+      mockSiteSettings,
+      "Supabase is not configured. Production cannot use mock site settings."
+    );
   }
 
   const { data, error } = await supabase
@@ -526,7 +573,10 @@ export async function getSiteSettings() {
 
   if (error || !data) {
     console.error("Failed to fetch site settings from Supabase:", error?.message);
-    return mockSiteSettings;
+    return getDevelopmentMockData(
+      mockSiteSettings,
+      "Failed to fetch production site settings from Supabase."
+    );
   }
 
   return {
@@ -538,7 +588,10 @@ export async function getSiteSettings() {
 
 export async function getTools() {
   if (!supabase) {
-    return mockTools;
+    return getDevelopmentMockData(
+      mockTools,
+      "Supabase is not configured. Production cannot use mock tools."
+    );
   }
 
   const { data, error } = await supabase
@@ -548,11 +601,17 @@ export async function getTools() {
 
   if (error || !data) {
     console.error("Failed to fetch tools from Supabase:", error?.message);
-    return mockTools;
+    return getDevelopmentMockData(
+      mockTools,
+      "Failed to fetch production tools from Supabase."
+    );
   }
 
   if (data.length === 0) {
-    return mockTools;
+    return getDevelopmentMockData(
+      mockTools,
+      "Production tools are empty. Mock tools are disabled."
+    );
   }
 
   return data;

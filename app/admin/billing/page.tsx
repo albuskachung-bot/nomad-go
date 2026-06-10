@@ -5,7 +5,7 @@ import {
   normalizePlatformApiSettings,
   platformApiSettingKeys
 } from "@/lib/platform-settings";
-import type { Transaction } from "@/lib/types";
+import type { Order } from "@/lib/types";
 
 type BillingTransaction = {
   id: string;
@@ -37,15 +37,27 @@ function formatAmount(value: number) {
   }).format(value);
 }
 
-function toBillingTransaction(transaction: Transaction): BillingTransaction {
+function normalizeOrderStatus(status: string) {
+  if (status === "paid") {
+    return "Success";
+  }
+
+  if (status === "failed") {
+    return "Failed";
+  }
+
+  return "Pending";
+}
+
+function toBillingTransaction(order: Order): BillingTransaction {
   return {
-    id: transaction.transaction_id,
-    paidAt: formatTransactionDate(transaction.created_at),
-    company: transaction.company_name,
-    taxId: transaction.tax_id ?? "N/A",
-    plan: transaction.plan_name ?? "未設定",
-    amount: formatAmount(transaction.amount),
-    status: transaction.status
+    id: order.stripe_session_id,
+    paidAt: formatTransactionDate(order.paid_at ?? order.created_at),
+    company: order.company_name ?? "個人訂閱",
+    taxId: order.tax_id ?? "N/A",
+    plan: order.plan_name ?? order.product_type ?? "未設定",
+    amount: formatAmount(order.amount),
+    status: normalizeOrderStatus(order.status)
   };
 }
 
@@ -74,14 +86,14 @@ export default async function AdminBillingPage() {
 
   if (supabase) {
     const { data, error } = await supabase
-      .from("transactions")
+      .from("orders")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[admin/billing] Unable to load transactions.", error);
+      console.error("[admin/billing] Unable to load orders.", error);
     } else {
-      transactions = ((data ?? []) as Transaction[]).map(toBillingTransaction);
+      transactions = ((data ?? []) as Order[]).map(toBillingTransaction);
     }
   }
 

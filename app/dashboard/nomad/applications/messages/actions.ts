@@ -80,6 +80,6 @@ export async function sendApplicantMessage(formData: FormData) {
 
   revalidatePath("/dashboard/nomad/applications");
   revalidatePath("/dashboard/nomad/applications/messages");
-  revalidatePath("/dashboard/employer/messages");
+  revalidatePath("/employer/messages");
   redirect(`/dashboard/nomad/applications/messages?application_id=${encodeURIComponent(applicationId)}`);
 }

@@ -7,9 +7,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type ProfileGate = {
+  account_type?: string | null;
   is_banned: boolean;
   role?: string | null;
 };
+
+const employerSignInPath = "/auth/signin";
 
 function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string) {
   const redirectUrl = new URL(pathname, request.url);
@@ -42,8 +45,32 @@ function isDashboardRoute(pathname: string) {
   return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 }
 
+function getLegacyEmployerPath(pathname: string) {
+  if (pathname === "/dashboard/employer") {
+    return "/employer/dashboard";
+  }
+
+  if (pathname.startsWith("/dashboard/employer/")) {
+    return pathname.replace("/dashboard/employer", "/employer");
+  }
+
+  return null;
+}
+
 function isEmployerRoute(pathname: string) {
   return pathname === "/employer" || pathname.startsWith("/employer/");
+}
+
+function canAccessEmployerRoute(profile: ProfileGate | null) {
+  if (!profile) {
+    return false;
+  }
+
+  return (
+    profile.account_type === "employer" ||
+    profile.role === "employer" ||
+    profile.role === "pro"
+  );
 }
 
 function isProtectedAdminRoute(pathname: string) {
@@ -59,8 +86,44 @@ function failOpenForProfileRead(
   return response;
 }
 
+async function hasEmployerWorkspaceAccess(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+  userId: string
+) {
+  const { data: ownedCompany, error: ownedCompanyError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("employer_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!ownedCompanyError && ownedCompany) {
+    return true;
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("company_members")
+    .select("company_id")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membershipError && membership) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const legacyEmployerPath = getLegacyEmployerPath(pathname);
+
+  if (legacyEmployerPath) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = legacyEmployerPath;
+    return NextResponse.redirect(redirectUrl);
+  }
 
   let supabaseResponse = NextResponse.next({
     request
@@ -74,7 +137,7 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isEmployerRoute(pathname)) {
-      return redirectWithCookies(request, supabaseResponse, "/");
+      return redirectWithCookies(request, supabaseResponse, employerSignInPath);
     }
 
     return supabaseResponse;
@@ -113,7 +176,11 @@ export async function middleware(request: NextRequest) {
       return redirectWithCookies(request, supabaseResponse, "/admin/login");
     }
 
-    if (isDashboardRoute(pathname) || isEmployerRoute(pathname) || isOnboardingRoute(pathname)) {
+    if (isEmployerRoute(pathname)) {
+      return redirectWithCookies(request, supabaseResponse, employerSignInPath);
+    }
+
+    if (isDashboardRoute(pathname) || isOnboardingRoute(pathname)) {
       return supabaseResponse;
     }
 
@@ -125,7 +192,11 @@ export async function middleware(request: NextRequest) {
       return redirectWithCookies(request, supabaseResponse, "/admin/login");
     }
 
-    if (isDashboardRoute(pathname) || isEmployerRoute(pathname)) {
+    if (isEmployerRoute(pathname)) {
+      return redirectWithCookies(request, supabaseResponse, employerSignInPath);
+    }
+
+    if (isDashboardRoute(pathname)) {
       return redirectWithCookies(request, supabaseResponse, "/");
     }
 
@@ -181,7 +252,7 @@ export async function middleware(request: NextRequest) {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("is_banned")
+      .select("account_type,is_banned,role")
       .eq("id", session.user.id)
       .maybeSingle();
 
@@ -195,6 +266,11 @@ export async function middleware(request: NextRequest) {
 
     profile = data;
   } catch (error) {
+    if (isEmployerRoute(pathname)) {
+      console.error("[middleware] Failed to verify employer route access.", error);
+      return redirectWithCookies(request, supabaseResponse, "/dashboard");
+    }
+
     return failOpenForProfileRead(supabaseResponse, error);
   }
 
@@ -202,11 +278,22 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(request, supabaseResponse, "/account-banned");
   }
 
+  if (isEmployerRoute(pathname)) {
+    const hasEmployerAccess =
+      canAccessEmployerRoute(profile) ||
+      (await hasEmployerWorkspaceAccess(supabase, session.user.id));
+
+    if (!hasEmployerAccess) {
+      return redirectWithCookies(request, supabaseResponse, "/dashboard");
+    }
+  }
+
   return supabaseResponse;
 }
 
 export const config = {
   matcher: [
+    "/employer/:path*",
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map)$).*)"
   ]
 };

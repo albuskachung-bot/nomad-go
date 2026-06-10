@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Compass, LogIn } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import LoginModal from "@/components/LoginModal";
+import NotificationBell from "@/components/NotificationBell";
 import UserDropdown from "@/components/UserDropdown";
 import { supabase } from "@/lib/supabase/client";
 import type { ProfileRole } from "@/lib/types";
@@ -130,11 +131,14 @@ export default function Header() {
             </nav>
 
             {user ? (
-              <UserDropdown
-                user={user}
-                profileRole={profileRole}
-                onSignOut={handleSignOut}
-              />
+              <>
+                <NotificationBell userId={user.id} />
+                <UserDropdown
+                  user={user}
+                  profileRole={profileRole}
+                  onSignOut={handleSignOut}
+                />
+              </>
             ) : (
               <button
                 type="button"

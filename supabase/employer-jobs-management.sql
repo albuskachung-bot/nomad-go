@@ -14,7 +14,7 @@ alter table public.jobs
 update public.jobs
 set status = 'draft'
 where status is null
-   or status not in ('draft', 'pending', 'published', 'closed');
+   or status not in ('draft', 'pending', 'reviewed', 'published', 'closed', 'rejected');
 
 update public.jobs
 set views_count = 0
@@ -39,7 +39,7 @@ begin
   ) then
     alter table public.jobs
       add constraint jobs_status_check
-      check (status in ('draft', 'pending', 'published', 'closed'));
+      check (status in ('draft', 'pending', 'reviewed', 'published', 'closed', 'rejected'));
   end if;
 end $$;
 

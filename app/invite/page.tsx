@@ -84,7 +84,7 @@ export default async function InvitePage({ searchParams }: InvitePageProps) {
           tone="success"
           title="邀請已被接受"
           description="這張邀請票券已完成加入流程。你可以直接前往企業雇主中心。"
-          actionHref="/dashboard/employer"
+          actionHref="/employer/dashboard"
           actionLabel="前往雇主中心"
         />
       </InviteShell>

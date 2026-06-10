@@ -82,6 +82,7 @@ as $$
 declare
   current_user_id uuid := auth.uid();
   current_plan text;
+  current_plan_expires_at timestamptz;
   current_count integer;
   current_reset_date timestamptz;
   now_value timestamptz := now();
@@ -95,9 +96,10 @@ begin
 
   select
     coalesce(profiles.subscription_plan, 'free'),
+    profiles.plan_expires_at,
     coalesce(profiles.free_ai_usage_count, 0),
     profiles.quota_reset_date
-  into current_plan, current_count, current_reset_date
+  into current_plan, current_plan_expires_at, current_count, current_reset_date
   from public.profiles
   where profiles.id = current_user_id
   for update;
@@ -108,11 +110,15 @@ begin
     return;
   end if;
 
-  if current_plan in ('pro', 'vip') then
+  if current_plan in ('pro', 'vip')
+    and (current_plan_expires_at is null or current_plan_expires_at > now_value)
+  then
     return query
       select true, null::text, current_count, monthly_free_limit, current_reset_date, current_plan;
     return;
   end if;
+
+  current_plan := 'free';
 
   if current_reset_date is null or current_reset_date <= now_value then
     current_count := 0;

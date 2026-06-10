@@ -1,21 +1,16 @@
 "use server";
 
+import { getUserPlan } from "@/lib/subscription";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ProfileView } from "@/lib/types";
-
-type ProfilePlanType = "free" | "pro" | "vip";
 
 type ProfileViewsResult = {
   totalCount: number;
   views: ProfileView[];
   isLocked: boolean;
-  planType: ProfilePlanType;
+  plan: string;
   error?: string;
 };
-
-function normalizePlanType(value: string | null | undefined): ProfilePlanType {
-  return value === "pro" || value === "vip" ? value : "free";
-}
 
 export async function getProfileViews(userId: string): Promise<ProfileViewsResult> {
   const supabase = await createSupabaseServerClient();
@@ -25,7 +20,7 @@ export async function getProfileViews(userId: string): Promise<ProfileViewsResul
       totalCount: 0,
       views: [],
       isLocked: false,
-      planType: "free",
+      plan: "free",
       error: "Supabase 尚未設定。"
     };
   }
@@ -39,28 +34,12 @@ export async function getProfileViews(userId: string): Promise<ProfileViewsResul
       totalCount: 0,
       views: [],
       isLocked: false,
-      planType: "free",
+      plan: "free",
       error: "無權限讀取履歷瀏覽紀錄。"
     };
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("plan_type")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (profileError) {
-    return {
-      totalCount: 0,
-      views: [],
-      isLocked: false,
-      planType: "free",
-      error: profileError.message
-    };
-  }
-
-  const planType = normalizePlanType(profile?.plan_type);
+  const userPlan = await getUserPlan(userId);
   const { count, error: countError } = await supabase
     .from("profile_views")
     .select("*", { count: "exact", head: true })
@@ -71,7 +50,7 @@ export async function getProfileViews(userId: string): Promise<ProfileViewsResul
       totalCount: 0,
       views: [],
       isLocked: false,
-      planType,
+      plan: userPlan.plan,
       error: countError.message
     };
   }
@@ -82,7 +61,7 @@ export async function getProfileViews(userId: string): Promise<ProfileViewsResul
     .eq("target_user_id", userId)
     .order("viewed_at", { ascending: false });
 
-  if (planType === "free") {
+  if (!userPlan.isPro) {
     viewsQuery = viewsQuery.limit(1);
   }
 
@@ -92,8 +71,8 @@ export async function getProfileViews(userId: string): Promise<ProfileViewsResul
     return {
       totalCount: count ?? 0,
       views: [],
-      isLocked: planType === "free" && (count ?? 0) > 0,
-      planType,
+      isLocked: !userPlan.isPro && (count ?? 0) > 0,
+      plan: userPlan.plan,
       error: viewsError.message
     };
   }
@@ -104,7 +83,7 @@ export async function getProfileViews(userId: string): Promise<ProfileViewsResul
   return {
     totalCount,
     views: visibleViews,
-    isLocked: planType === "free" && totalCount > visibleViews.length,
-    planType
+    isLocked: !userPlan.isPro && totalCount > visibleViews.length,
+    plan: userPlan.plan
   };
 }

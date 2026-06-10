@@ -1,13 +1,17 @@
 import { Clock3 } from "lucide-react";
-import { getPublicTalents, type PublicTalent } from "@/app/actions/employerTalents";
-import TalentCardActions from "@/app/employer/talents/TalentCardActions";
-import { getEmployerWorkspaceContext } from "@/lib/employer-workspace";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import ViewProfileButton from "@/app/employer/talents/ViewProfileButton";
+
+export type PublicTalent = {
+  id: string;
+  name: string;
+  title: string;
+  skills: string[];
+  timezone: string | null;
+  avatarUrl: string | null;
+};
 
 type TalentCardProps = {
   talent: PublicTalent;
-  companyId: string | null;
-  companyName: string | null;
 };
 
 function getInitials(talent: PublicTalent) {
@@ -33,7 +37,7 @@ function TalentAvatar({ talent }: { talent: PublicTalent }) {
   );
 }
 
-function TalentCard({ talent, companyId, companyName }: TalentCardProps) {
+function TalentCard({ talent }: TalentCardProps) {
   const visibleSkills = talent.skills.slice(0, 3);
 
   return (
@@ -70,36 +74,18 @@ function TalentCard({ talent, companyId, companyName }: TalentCardProps) {
         )}
       </div>
 
-      <TalentCardActions
-        targetUserId={talent.id}
-        companyId={companyId}
-        companyName={companyName}
-      />
+      <ViewProfileButton targetUserId={talent.id} />
     </article>
   );
 }
 
-export default async function TalentGrid() {
-  const { talents, error } = await getPublicTalents();
-  const supabase = await createSupabaseServerClient();
-  let companyId: string | null = null;
-  let companyName: string | null = null;
-
-  if (supabase) {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const workspace = await getEmployerWorkspaceContext(supabase, user.id);
-
-      if (workspace.context) {
-        companyId = workspace.context.company.id;
-        companyName = workspace.context.company.name;
-      }
-    }
-  }
-
+export default function TalentGrid({
+  talents,
+  error
+}: {
+  talents: PublicTalent[];
+  error: string | null;
+}) {
   if (error) {
     return (
       <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
@@ -125,8 +111,6 @@ export default async function TalentGrid() {
         <TalentCard
           key={talent.id}
           talent={talent}
-          companyId={companyId}
-          companyName={companyName}
         />
       ))}
     </div>

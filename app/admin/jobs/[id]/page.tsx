@@ -20,7 +20,7 @@ import {
 import AdminJobReviewActions from "@/components/admin/AdminJobReviewActions";
 import { mockJobs } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Company, ContentStatus, Job } from "@/lib/types";
+import type { Company, Job, JobStatus } from "@/lib/types";
 
 type AdminJobDetailPageProps = {
   params: Promise<{
@@ -44,7 +44,7 @@ type AdminJobDetail = {
 };
 
 const publicationStatusMeta: Record<
-  ContentStatus,
+  JobStatus,
   {
     label: string;
     description: string;
@@ -52,17 +52,35 @@ const publicationStatusMeta: Record<
     icon: LucideIcon;
   }
 > = {
+  draft: {
+    label: "草稿",
+    description: "企業尚未送審，前台不公開。",
+    className: "bg-slate-100 text-slate-600 ring-slate-200",
+    icon: FileText
+  },
   pending: {
     label: "尚未上架",
     description: "前台不公開，等待營運審核。",
     className: "bg-amber-50 text-amber-700 ring-amber-200",
     icon: Clock3
   },
+  reviewed: {
+    label: "AI 已審核",
+    description: "AI 初步審核完成，等待人工核准。",
+    className: "bg-blue-50 text-blue-700 ring-blue-200",
+    icon: Sparkles
+  },
   published: {
     label: "公開上架",
     description: "已核准，前台職缺列表可見。",
     className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     icon: CheckCircle2
+  },
+  closed: {
+    label: "停止招募",
+    description: "企業已下架或停止招募，前台不可投遞。",
+    className: "bg-zinc-100 text-zinc-600 ring-zinc-200",
+    icon: XCircle
   },
   rejected: {
     label: "退回未上架",
@@ -73,22 +91,37 @@ const publicationStatusMeta: Record<
 };
 
 const reviewStatusMeta: Record<
-  ContentStatus,
+  JobStatus,
   {
     label: string;
     className: string;
     icon: LucideIcon;
   }
 > = {
+  draft: {
+    label: "草稿",
+    className: "bg-slate-100 text-slate-600 ring-slate-200",
+    icon: FileText
+  },
   pending: {
     label: "等待審核",
     className: "bg-slate-100 text-slate-600 ring-slate-200",
+    icon: Sparkles
+  },
+  reviewed: {
+    label: "AI 已審核",
+    className: "bg-blue-50 text-blue-700 ring-blue-200",
     icon: Sparkles
   },
   published: {
     label: "已核准",
     className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     icon: CheckCircle2
+  },
+  closed: {
+    label: "已下架",
+    className: "bg-zinc-100 text-zinc-600 ring-zinc-200",
+    icon: XCircle
   },
   rejected: {
     label: "已退回修改",

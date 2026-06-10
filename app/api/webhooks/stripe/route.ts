@@ -14,6 +14,14 @@ function addDays(date: Date, days: number) {
   return nextDate;
 }
 
+function getStripeCustomerId(session: Stripe.Checkout.Session) {
+  return typeof session.customer === "string" ? session.customer : null;
+}
+
+function getTalentSubscriptionPlan(planId: string) {
+  return planId === "monthly" ? "vip" : "pro";
+}
+
 function buildUpgradeEmail(planName: string, sponsoredUntil: string) {
   return `
     <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.7;">
@@ -64,7 +72,7 @@ async function handleCompanySubscriptionCheckout(
 
   const { data: company } = await supabaseAdmin
     .from("companies")
-    .select("id,name,plan_expires_at")
+    .select("id,name,tax_id,plan_expires_at")
     .eq("id", companyId)
     .maybeSingle();
 
@@ -95,7 +103,16 @@ async function handleCompanySubscriptionCheckout(
         user_id: userId,
         stripe_session_id: session.id,
         amount: session.amount_total ?? plan.amount,
-        status: "paid"
+        status: "paid",
+        checkout_type: "company_subscription",
+        product_type: "company_subscription",
+        plan_id: plan.id,
+        plan_name: plan.name,
+        company_id: company.id,
+        company_name: company.name,
+        tax_id: company.tax_id ?? null,
+        stripe_customer_id: getStripeCustomerId(session),
+        paid_at: new Date().toISOString()
       },
       {
         onConflict: "stripe_session_id"
@@ -185,7 +202,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("id,sponsored_until")
+    .select("id,plan_expires_at,sponsored_until")
     .eq("id", userId)
     .maybeSingle();
 
@@ -193,12 +210,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Profile not found." }, { status: 404 });
   }
 
-  const existingUntil = profile.sponsored_until
-    ? new Date(profile.sponsored_until)
-    : null;
+  const existingUntil = profile.plan_expires_at
+    ? new Date(profile.plan_expires_at)
+    : profile.sponsored_until
+      ? new Date(profile.sponsored_until)
+      : null;
   const baseDate = existingUntil && existingUntil > new Date() ? existingUntil : new Date();
   const sponsoredUntil = addDays(baseDate, plan.durationDays).toISOString();
-  const stripeCustomerId = typeof session.customer === "string" ? session.customer : null;
+  const stripeCustomerId = getStripeCustomerId(session);
+  const subscriptionPlan = getTalentSubscriptionPlan(plan.id);
 
   const { error: orderError } = await supabaseAdmin
     .from("orders")
@@ -207,7 +227,13 @@ export async function POST(request: Request) {
         user_id: userId,
         stripe_session_id: session.id,
         amount: session.amount_total ?? plan.amount,
-        status: "paid"
+        status: "paid",
+        checkout_type: "talent_promotion",
+        product_type: "talent_promotion",
+        plan_id: plan.id,
+        plan_name: plan.name,
+        stripe_customer_id: stripeCustomerId,
+        paid_at: new Date().toISOString()
       },
       {
         onConflict: "stripe_session_id"
@@ -221,6 +247,8 @@ export async function POST(request: Request) {
   const { error: profileError } = await supabaseAdmin
     .from("profiles")
     .update({
+      subscription_plan: subscriptionPlan,
+      plan_expires_at: sponsoredUntil,
       sponsored_until: sponsoredUntil,
       stripe_customer_id: stripeCustomerId
     })

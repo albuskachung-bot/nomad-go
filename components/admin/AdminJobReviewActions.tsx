@@ -3,12 +3,12 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
-import { updateAdminContentItem } from "@/app/admin/actions";
-import type { ContentStatus } from "@/lib/types";
+import { reviewJobAction, updateAdminContentItem } from "@/app/admin/actions";
+import type { JobStatus } from "@/lib/types";
 
 type AdminJobReviewActionsProps = {
   jobId: string;
-  status: ContentStatus;
+  status: JobStatus;
   disabled?: boolean;
 };
 
@@ -17,7 +17,7 @@ type Toast = {
   message: string;
 } | null;
 
-const statusMessages: Record<Extract<ContentStatus, "published" | "rejected">, string> = {
+const statusMessages: Record<Extract<JobStatus, "published" | "rejected">, string> = {
   published: "職缺已核准上架。",
   rejected: "職缺已退回修改。"
 };
@@ -28,7 +28,7 @@ export default function AdminJobReviewActions({
   disabled = false
 }: AdminJobReviewActionsProps) {
   const router = useRouter();
-  const [pendingStatus, setPendingStatus] = useState<ContentStatus | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<JobStatus | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -41,7 +41,7 @@ export default function AdminJobReviewActions({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  function updateStatus(nextStatus: Extract<ContentStatus, "published" | "rejected">) {
+  function updateStatus(nextStatus: Extract<JobStatus, "published" | "rejected">) {
     if (disabled || status === nextStatus) {
       return;
     }
@@ -77,6 +77,38 @@ export default function AdminJobReviewActions({
     });
   }
 
+  function reviewWithAi() {
+    if (disabled || status === "reviewed") {
+      return;
+    }
+
+    setToast(null);
+    setPendingStatus("reviewed");
+
+    startTransition(async () => {
+      try {
+        const result = await reviewJobAction(jobId);
+
+        setToast({
+          type: result.ok ? "success" : "error",
+          message: result.message
+        });
+
+        if (result.ok) {
+          router.refresh();
+        }
+      } catch (error) {
+        setToast({
+          type: "error",
+          message: error instanceof Error ? error.message : "AI 審核執行失敗。"
+        });
+      } finally {
+        setPendingStatus(null);
+      }
+    });
+  }
+
+  const reviewPending = isPending && pendingStatus === "reviewed";
   const approvePending = isPending && pendingStatus === "published";
   const rejectPending = isPending && pendingStatus === "rejected";
 
@@ -101,12 +133,16 @@ export default function AdminJobReviewActions({
       <div className="flex justify-end gap-2">
         <button
           type="button"
-          disabled
-          title="AI 審核服務尚未串接"
-          className="inline-flex h-9 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-500"
+          disabled={disabled || isPending || status === "reviewed"}
+          onClick={reviewWithAi}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-100 disabled:text-blue-500"
         >
-          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          啟動 AI 審核
+          {reviewPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          {reviewPending ? "審核中" : "啟動 AI 審核"}
         </button>
         <button
           type="button"

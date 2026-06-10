@@ -104,6 +104,11 @@ export async function POST(request: Request) {
     user_id: user.id,
     stripe_session_id: session.id,
     amount: plan.amount,
+    checkout_type: "talent_promotion",
+    product_type: "talent_promotion",
+    plan_id: plan.id,
+    plan_name: plan.name,
+    stripe_customer_id: typeof session.customer === "string" ? session.customer : null,
     status: "pending"
   });
 

@@ -7,6 +7,29 @@ alter table public.profiles
   add column if not exists subscription_plan text not null default 'free',
   add column if not exists plan_expires_at timestamptz;
 
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'plan_type'
+  ) then
+    execute $migration$
+      update public.profiles
+      set subscription_plan = case
+        when plan_type in ('pro', 'vip') then plan_type
+        else 'free'
+      end
+      where subscription_plan is null
+         or subscription_plan = 'free'
+    $migration$;
+
+    alter table public.profiles drop column plan_type;
+  end if;
+end $$;
+
 update public.profiles
 set subscription_plan = 'free'
 where subscription_plan is null

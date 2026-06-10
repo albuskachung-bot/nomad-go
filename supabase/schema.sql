@@ -26,6 +26,12 @@ create table if not exists public.profiles (
   social_urls jsonb not null default '{}'::jsonb,
   work_experience jsonb not null default '[]'::jsonb,
   education jsonb not null default '[]'::jsonb,
+  is_public boolean not null default false,
+  subscription_plan text not null default 'free'
+    constraint profiles_subscription_plan_check
+    check (subscription_plan in ('free', 'pro', 'vip')),
+  plan_expires_at timestamptz,
+  direct_connect_tokens integer not null default 1,
   sponsored_until timestamptz,
   stripe_customer_id text,
   created_at timestamptz not null default now(),
@@ -36,6 +42,7 @@ create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   company text not null,
+  company_name text,
   location text not null,
   job_type text not null,
   category text default '其他 (Other)',
@@ -54,7 +61,7 @@ create table if not exists public.jobs (
   rejection_reason text,
   status text not null default 'pending'
     constraint jobs_status_check
-    check (status in ('pending', 'published', 'rejected')),
+    check (status in ('draft', 'pending', 'reviewed', 'published', 'closed', 'rejected')),
   created_at timestamptz not null default now()
 );
 
@@ -152,6 +159,15 @@ create table if not exists public.orders (
   status text not null default 'pending'
     constraint orders_status_check
     check (status in ('pending', 'paid', 'failed')),
+  checkout_type text not null default 'talent_promotion',
+  product_type text,
+  plan_id text,
+  plan_name text,
+  company_id uuid references public.companies(id) on delete set null,
+  company_name text,
+  tax_id text,
+  stripe_customer_id text,
+  paid_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -175,9 +191,31 @@ create table if not exists public.applications (
     check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired')),
   resume_url text not null default 'legacy/no-resume.pdf',
   cover_letter text,
+  screening_answers jsonb not null default '[]'::jsonb,
   internal_notes text,
   applied_at timestamptz not null default now(),
   unique (user_id, job_id)
+);
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references public.applications(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  content text not null,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.notifications (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  type text not null default 'system',
+  title text not null,
+  message text not null,
+  link_url text,
+  metadata jsonb not null default '{}'::jsonb,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists account_type text;
@@ -248,8 +286,39 @@ alter table public.profiles add column if not exists portfolio_url text;
 alter table public.profiles add column if not exists social_urls jsonb not null default '{}'::jsonb;
 alter table public.profiles add column if not exists work_experience jsonb not null default '[]'::jsonb;
 alter table public.profiles add column if not exists education jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists is_public boolean not null default false;
+alter table public.profiles add column if not exists subscription_plan text not null default 'free';
+alter table public.profiles add column if not exists plan_expires_at timestamptz;
+alter table public.profiles add column if not exists direct_connect_tokens integer not null default 1;
 alter table public.profiles add column if not exists sponsored_until timestamptz;
 alter table public.profiles add column if not exists stripe_customer_id text;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'plan_type'
+  ) then
+    execute $migration$
+      update public.profiles
+      set subscription_plan = case
+        when plan_type in ('pro', 'vip') then plan_type
+        else 'free'
+      end
+      where subscription_plan is null
+         or subscription_plan = 'free'
+    $migration$;
+
+    alter table public.profiles drop column plan_type;
+  end if;
+end $$;
+
+alter table public.profiles drop constraint if exists profiles_subscription_plan_check;
+alter table public.profiles add constraint profiles_subscription_plan_check
+  check (subscription_plan in ('free', 'pro', 'vip'));
 
 alter table public.profiles alter column work_experience set default '[]'::jsonb;
 update public.profiles
@@ -309,6 +378,15 @@ begin
 end $$;
 
 alter table public.orders add column if not exists status text not null default 'pending';
+alter table public.orders add column if not exists checkout_type text not null default 'talent_promotion';
+alter table public.orders add column if not exists product_type text;
+alter table public.orders add column if not exists plan_id text;
+alter table public.orders add column if not exists plan_name text;
+alter table public.orders add column if not exists company_id uuid references public.companies(id) on delete set null;
+alter table public.orders add column if not exists company_name text;
+alter table public.orders add column if not exists tax_id text;
+alter table public.orders add column if not exists stripe_customer_id text;
+alter table public.orders add column if not exists paid_at timestamptz;
 alter table public.orders drop constraint if exists orders_status_check;
 alter table public.orders add constraint orders_status_check
   check (status in ('pending', 'paid', 'failed'));
@@ -321,13 +399,62 @@ alter table public.saved_items add constraint saved_items_item_type_check
 alter table public.applications add column if not exists status text not null default 'pending';
 alter table public.applications add column if not exists resume_url text not null default 'legacy/no-resume.pdf';
 alter table public.applications add column if not exists cover_letter text;
+alter table public.applications add column if not exists screening_answers jsonb not null default '[]'::jsonb;
 alter table public.applications add column if not exists internal_notes text;
 alter table public.applications drop constraint if exists applications_status_check;
 alter table public.applications add constraint applications_status_check
   check (status in ('pending', 'reviewed', 'interview', 'rejected', 'hired'));
 
+alter table public.messages add column if not exists application_id uuid references public.applications(id) on delete cascade;
+alter table public.messages add column if not exists sender_id uuid references public.profiles(id) on delete cascade;
+alter table public.messages add column if not exists content text;
+alter table public.messages add column if not exists is_read boolean not null default false;
+alter table public.messages add column if not exists created_at timestamptz not null default now();
+update public.messages
+set content = coalesce(content, ''),
+    is_read = coalesce(is_read, false),
+    created_at = coalesce(created_at, now())
+where content is null
+   or is_read is null
+   or created_at is null;
+alter table public.messages alter column application_id set not null;
+alter table public.messages alter column sender_id set not null;
+alter table public.messages alter column content set not null;
+alter table public.messages alter column is_read set not null;
+alter table public.messages alter column created_at set not null;
+
+alter table public.notifications add column if not exists user_id uuid references public.profiles(id) on delete cascade;
+alter table public.notifications add column if not exists type text not null default 'system';
+alter table public.notifications add column if not exists title text;
+alter table public.notifications add column if not exists message text;
+alter table public.notifications add column if not exists link_url text;
+alter table public.notifications add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table public.notifications add column if not exists is_read boolean not null default false;
+alter table public.notifications add column if not exists created_at timestamptz not null default now();
+update public.notifications
+set type = coalesce(type, 'system'),
+    title = coalesce(title, '系統通知'),
+    message = coalesce(message, ''),
+    metadata = coalesce(metadata, '{}'::jsonb),
+    is_read = coalesce(is_read, false),
+    created_at = coalesce(created_at, now())
+where type is null
+   or title is null
+   or message is null
+   or metadata is null
+   or is_read is null
+   or created_at is null;
+alter table public.notifications alter column user_id set not null;
+alter table public.notifications alter column title set not null;
+alter table public.notifications alter column message set not null;
+alter table public.notifications alter column metadata set not null;
+alter table public.notifications alter column is_read set not null;
+alter table public.notifications alter column created_at set not null;
+
 alter table public.jobs add column if not exists status text not null default 'pending';
 alter table public.jobs add column if not exists employer_id uuid references public.profiles(id) on delete set null;
+alter table public.jobs add column if not exists company_id uuid references public.companies(id) on delete set null;
+alter table public.jobs add column if not exists company_name text;
 alter table public.jobs add column if not exists category text default '其他 (Other)';
 alter table public.jobs add column if not exists experience_level text default '中階 (Mid-Level)';
 alter table public.jobs add column if not exists employment_type text default '全職 (Full-time)';
@@ -338,7 +465,7 @@ alter table public.jobs add column if not exists benefits text not null default 
 alter table public.jobs add column if not exists rejection_reason text;
 alter table public.jobs drop constraint if exists jobs_status_check;
 alter table public.jobs add constraint jobs_status_check
-  check (status in ('pending', 'published', 'rejected'));
+  check (status in ('draft', 'pending', 'reviewed', 'published', 'closed', 'rejected'));
 
 alter table public.jobs drop constraint if exists jobs_category_check;
 alter table public.jobs add constraint jobs_category_check
@@ -475,6 +602,18 @@ create index if not exists applications_job_id_status_idx
 
 create unique index if not exists applications_user_id_job_id_key
   on public.applications (user_id, job_id);
+
+create index if not exists messages_application_created_at_idx
+  on public.messages (application_id, created_at asc);
+
+create index if not exists messages_sender_created_at_idx
+  on public.messages (sender_id, created_at desc);
+
+create index if not exists notifications_user_created_at_idx
+  on public.notifications(user_id, created_at desc);
+
+create index if not exists notifications_user_unread_idx
+  on public.notifications(user_id, is_read, created_at desc);
 
 create index if not exists talents_status_created_at_idx
   on public.talents (status, created_at desc);
@@ -751,6 +890,257 @@ begin
 end;
 $$;
 
+drop function if exists public.create_application_with_notification(uuid, uuid, text, text, jsonb);
+create function public.create_application_with_notification(
+  target_job_id uuid,
+  target_user_id uuid,
+  target_resume_url text,
+  target_cover_letter text default null,
+  target_screening_answers jsonb default '[]'::jsonb
+)
+returns table (
+  application_id uuid,
+  owner_id uuid,
+  job_title text,
+  company_name text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  job_record record;
+  created_application_id uuid;
+begin
+  if auth.uid() is null or auth.uid() <> target_user_id then
+    raise exception 'not_authenticated';
+  end if;
+
+  if nullif(trim(coalesce(target_resume_url, '')), '') is null then
+    raise exception 'resume_url_required';
+  end if;
+
+  select
+    jobs.id,
+    jobs.title,
+    jobs.employer_id,
+    jobs.company_id,
+    coalesce(companies.employer_id, jobs.employer_id) as owner_id,
+    coalesce(companies.name, jobs.company_name, jobs.company, '企業雇主') as company_name
+  into job_record
+  from public.jobs
+  left join public.companies on companies.id = jobs.company_id
+  where jobs.id = target_job_id
+    and jobs.status = 'published';
+
+  if not found then
+    raise exception 'job_not_found';
+  end if;
+
+  if job_record.owner_id is null then
+    raise exception 'job_owner_not_found';
+  end if;
+
+  insert into public.applications (
+    user_id,
+    job_id,
+    status,
+    resume_url,
+    cover_letter,
+    screening_answers
+  )
+  values (
+    target_user_id,
+    target_job_id,
+    'pending',
+    target_resume_url,
+    nullif(trim(coalesce(target_cover_letter, '')), ''),
+    coalesce(target_screening_answers, '[]'::jsonb)
+  )
+  returning id into created_application_id;
+
+  insert into public.notifications (
+    user_id,
+    type,
+    title,
+    message,
+    link_url,
+    metadata
+  )
+  values (
+    job_record.owner_id,
+    'application_created',
+    '收到新的職缺投遞',
+    '有候選人投遞了「' || job_record.title || '」。',
+    '/employer/applicants?application_id=' || created_application_id::text,
+    jsonb_build_object(
+      'application_id', created_application_id,
+      'job_id', target_job_id,
+      'job_title', job_record.title,
+      'company_id', job_record.company_id,
+      'company_name', job_record.company_name,
+      'user_id', target_user_id
+    )
+  );
+
+  return query
+    select
+      created_application_id,
+      job_record.owner_id::uuid,
+      job_record.title::text,
+      job_record.company_name::text;
+end;
+$$;
+
+grant execute on function public.create_application_with_notification(uuid, uuid, text, text, jsonb) to authenticated;
+
+drop function if exists public.execute_direct_connect(uuid, uuid, text);
+create function public.execute_direct_connect(
+  target_job_id uuid,
+  target_user_id uuid,
+  message_content text default null
+)
+returns table (
+  application_id uuid,
+  remaining_tokens integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_plan text;
+  current_plan_expires_at timestamptz;
+  current_tokens integer;
+  is_paid_plan boolean;
+  job_record record;
+  created_application_id uuid;
+  direct_message text;
+begin
+  if auth.uid() is null or auth.uid() <> target_user_id then
+    raise exception 'not_authenticated';
+  end if;
+
+  select
+    coalesce(profiles.subscription_plan, 'free'),
+    profiles.plan_expires_at,
+    coalesce(profiles.direct_connect_tokens, 0)
+  into current_plan, current_plan_expires_at, current_tokens
+  from public.profiles
+  where profiles.id = target_user_id
+  for update;
+
+  if not found then
+    raise exception 'profile_not_found';
+  end if;
+
+  is_paid_plan := current_plan in ('pro', 'vip')
+    and (current_plan_expires_at is null or current_plan_expires_at > now());
+
+  if not is_paid_plan then
+    if current_tokens <= 0 then
+      raise exception 'direct_connect_tokens_exhausted';
+    end if;
+
+    update public.profiles
+    set direct_connect_tokens = direct_connect_tokens - 1
+    where id = target_user_id
+    returning direct_connect_tokens into current_tokens;
+  end if;
+
+  select
+    jobs.id,
+    jobs.title,
+    jobs.employer_id,
+    jobs.company_id,
+    coalesce(companies.employer_id, jobs.employer_id) as owner_id,
+    coalesce(companies.name, jobs.company_name, jobs.company, '企業雇主') as company_name
+  into job_record
+  from public.jobs
+  left join public.companies on companies.id = jobs.company_id
+  where jobs.id = target_job_id
+    and jobs.status = 'published';
+
+  if not found then
+    raise exception 'job_not_found';
+  end if;
+
+  if job_record.owner_id is null then
+    raise exception 'job_owner_not_found';
+  end if;
+
+  if job_record.owner_id = target_user_id then
+    raise exception 'cannot_direct_connect_self';
+  end if;
+
+  direct_message := nullif(trim(coalesce(message_content, '')), '');
+
+  if direct_message is null then
+    direct_message := '你好，我對這個職缺很感興趣，想主動與 Hiring Manager 聯繫。';
+  end if;
+
+  insert into public.applications (
+    user_id,
+    job_id,
+    status,
+    resume_url,
+    cover_letter,
+    screening_answers
+  )
+  values (
+    target_user_id,
+    target_job_id,
+    'pending',
+    'direct-connect/no-resume.pdf',
+    direct_message,
+    '[]'::jsonb
+  )
+  on conflict (user_id, job_id) do nothing
+  returning id into created_application_id;
+
+  if created_application_id is null then
+    select id
+    into created_application_id
+    from public.applications
+    where user_id = target_user_id
+      and job_id = target_job_id
+    limit 1;
+  end if;
+
+  insert into public.messages (application_id, sender_id, content)
+  values (created_application_id, target_user_id, direct_message);
+
+  insert into public.notifications (
+    user_id,
+    type,
+    title,
+    message,
+    link_url,
+    metadata
+  )
+  values (
+    job_record.owner_id,
+    'direct_connect',
+    '收到新的主動私訊',
+    '有候選人透過 Direct Connect 主動聯繫「' || job_record.title || '」。',
+    '/employer/messages?application_id=' || created_application_id::text,
+    jsonb_build_object(
+      'application_id', created_application_id,
+      'job_id', target_job_id,
+      'job_title', job_record.title,
+      'company_id', job_record.company_id,
+      'company_name', job_record.company_name,
+      'sender_id', target_user_id
+    )
+  );
+
+  return query
+    select created_application_id, current_tokens;
+end;
+$$;
+
+grant execute on function public.execute_direct_connect(uuid, uuid, text) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.jobs enable row level security;
 alter table public.companies enable row level security;
@@ -763,6 +1153,8 @@ alter table public.platform_settings force row level security;
 alter table public.orders enable row level security;
 alter table public.saved_items enable row level security;
 alter table public.applications enable row level security;
+alter table public.messages enable row level security;
+alter table public.notifications enable row level security;
 
 drop policy if exists profiles_public_read_talent on public.profiles;
 drop policy if exists profiles_employer_read_applicants on public.profiles;
@@ -778,10 +1170,44 @@ drop policy if exists site_settings_super_admin_update on public.site_settings;
 drop policy if exists platform_settings_super_admin_select on public.platform_settings;
 drop policy if exists platform_settings_super_admin_insert on public.platform_settings;
 drop policy if exists platform_settings_super_admin_update on public.platform_settings;
+drop policy if exists messages_participants_select on public.messages;
+drop policy if exists messages_participants_insert on public.messages;
+drop policy if exists messages_participants_update_read on public.messages;
+drop policy if exists notifications_select_own on public.notifications;
+drop policy if exists notifications_mark_own_read on public.notifications;
+
+drop view if exists public.public_talents;
+create view public.public_talents
+with (security_barrier = true)
+as
+select
+  id,
+  full_name,
+  title,
+  coalesce(job_title, title) as job_title,
+  avatar_url,
+  skills,
+  location,
+  timezone,
+  work_type,
+  coalesce(sponsored_until > now(), false) as is_featured,
+  updated_at
+from public.profiles
+where account_type = 'nomad'
+  and status = 'published'
+  and is_public = true
+  and coalesce(is_banned, false) = false;
+
+grant select on public.public_talents to anon, authenticated;
 
 revoke all on public.platform_settings from anon;
 revoke all on public.platform_settings from authenticated;
 grant select, insert, update on public.platform_settings to authenticated;
+revoke all on public.messages from anon;
+revoke all on public.messages from authenticated;
+grant select, insert on public.messages to authenticated;
+grant update (is_read) on public.messages to authenticated;
+grant select, update on public.notifications to authenticated;
 
 create policy platform_settings_super_admin_select
   on public.platform_settings
@@ -826,18 +1252,6 @@ begin
       on public.profiles for insert
       to authenticated
       with check (auth.uid() = id);
-  end if;
-
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'profiles'
-      and policyname = 'profiles_public_read_talent'
-  ) then
-    create policy profiles_public_read_talent
-      on public.profiles for select
-      to anon, authenticated
-      using (account_type = 'nomad' and status = 'published' and is_banned = false);
   end if;
 
   if not exists (
@@ -946,7 +1360,7 @@ begin
       to authenticated
       with check (
         auth.uid() = employer_id
-        and status = 'pending'
+        and status in ('draft', 'pending')
         and exists (
           select 1
           from public.profiles
@@ -965,8 +1379,8 @@ begin
     create policy jobs_employer_update_own_drafts
       on public.jobs for update
       to authenticated
-      using (auth.uid() = employer_id and status <> 'published')
-      with check (auth.uid() = employer_id and status = 'pending');
+      using (auth.uid() = employer_id)
+      with check (auth.uid() = employer_id and status in ('draft', 'pending', 'closed'));
   end if;
 
   if not exists (
@@ -1205,6 +1619,124 @@ begin
       to authenticated
       using (public.is_admin_role())
       with check (public.is_admin_role());
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'messages'
+      and policyname = 'messages_participants_select'
+  ) then
+    create policy messages_participants_select
+      on public.messages for select
+      to authenticated
+      using (
+        exists (
+          select 1
+          from public.applications
+          join public.jobs on jobs.id = applications.job_id
+          left join public.companies on companies.id = jobs.company_id
+          where applications.id = messages.application_id
+            and (
+              applications.user_id = auth.uid()
+              or jobs.employer_id = auth.uid()
+              or companies.employer_id = auth.uid()
+            )
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'messages'
+      and policyname = 'messages_participants_insert'
+  ) then
+    create policy messages_participants_insert
+      on public.messages for insert
+      to authenticated
+      with check (
+        sender_id = auth.uid()
+        and length(trim(content)) > 0
+        and exists (
+          select 1
+          from public.applications
+          join public.jobs on jobs.id = applications.job_id
+          left join public.companies on companies.id = jobs.company_id
+          where applications.id = messages.application_id
+            and (
+              applications.user_id = auth.uid()
+              or jobs.employer_id = auth.uid()
+              or companies.employer_id = auth.uid()
+            )
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'messages'
+      and policyname = 'messages_participants_update_read'
+  ) then
+    create policy messages_participants_update_read
+      on public.messages for update
+      to authenticated
+      using (
+        sender_id <> auth.uid()
+        and exists (
+          select 1
+          from public.applications
+          join public.jobs on jobs.id = applications.job_id
+          left join public.companies on companies.id = jobs.company_id
+          where applications.id = messages.application_id
+            and (
+              applications.user_id = auth.uid()
+              or jobs.employer_id = auth.uid()
+              or companies.employer_id = auth.uid()
+            )
+        )
+      )
+      with check (
+        sender_id <> auth.uid()
+        and exists (
+          select 1
+          from public.applications
+          join public.jobs on jobs.id = applications.job_id
+          left join public.companies on companies.id = jobs.company_id
+          where applications.id = messages.application_id
+            and (
+              applications.user_id = auth.uid()
+              or jobs.employer_id = auth.uid()
+              or companies.employer_id = auth.uid()
+            )
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'notifications'
+      and policyname = 'notifications_select_own'
+  ) then
+    create policy notifications_select_own
+      on public.notifications for select
+      to authenticated
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'notifications'
+      and policyname = 'notifications_mark_own_read'
+  ) then
+    create policy notifications_mark_own_read
+      on public.notifications for update
+      to authenticated
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
   end if;
 end $$;
 

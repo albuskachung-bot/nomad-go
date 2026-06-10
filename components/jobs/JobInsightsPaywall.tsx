@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Lock, TrendingUp } from "lucide-react";
+import { getUserPlan } from "@/lib/subscription";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-async function getCurrentPlanType() {
+async function getCurrentPlan() {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
-    return "free";
+    return { isPro: false, plan: "free" };
   }
 
   const {
@@ -14,24 +15,16 @@ async function getCurrentPlanType() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return "free";
+    return { isPro: false, plan: "free" };
   }
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("plan_type")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return data?.plan_type === "pro" || data?.plan_type === "vip"
-    ? data.plan_type
-    : "free";
+  return getUserPlan(user.id);
 }
 
 export default async function JobInsightsPaywall() {
-  const planType = await getCurrentPlanType();
+  const userPlan = await getCurrentPlan();
 
-  if (planType === "pro" || planType === "vip") {
+  if (userPlan.isPro) {
     return (
       <section className="mt-8 rounded-xl border border-blue-100 bg-blue-50 p-6">
         <div className="flex items-center gap-3">

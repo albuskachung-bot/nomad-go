@@ -3,7 +3,7 @@ import { CircleAlert, Database, Sparkles } from "lucide-react";
 import AdminJobReviewActions from "@/components/admin/AdminJobReviewActions";
 import { mockJobs } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { ContentStatus, Job } from "@/lib/types";
+import type { Job, JobStatus } from "@/lib/types";
 
 type InventoryResult = {
   jobs: Job[];
@@ -11,15 +11,21 @@ type InventoryResult = {
   notice: string | null;
 };
 
-const publicationLabels: Record<ContentStatus, string> = {
+const publicationLabels: Record<JobStatus, string> = {
+  draft: "草稿",
   pending: "待發布",
+  reviewed: "已 AI 審核",
   published: "營運中",
+  closed: "已下架",
   rejected: "已退回"
 };
 
-const publicationStyles: Record<ContentStatus, string> = {
+const publicationStyles: Record<JobStatus, string> = {
+  draft: "bg-slate-100 text-slate-600 ring-slate-200",
   pending: "bg-amber-50 text-amber-700 ring-amber-200",
+  reviewed: "bg-blue-50 text-blue-700 ring-blue-200",
   published: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  closed: "bg-zinc-100 text-zinc-600 ring-zinc-200",
   rejected: "bg-rose-50 text-rose-700 ring-rose-200"
 };
 

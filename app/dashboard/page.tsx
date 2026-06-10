@@ -19,7 +19,7 @@ function DashboardFallbackPage() {
 
         <div className="mt-8 grid gap-5 md:grid-cols-2">
           <Link
-            href="/dashboard/employer"
+            href="/employer/dashboard"
             className="rounded-lg bg-white p-6 text-left shadow-sm ring-1 ring-gray-200 transition hover:-translate-y-1 hover:shadow-md"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-950 text-white">

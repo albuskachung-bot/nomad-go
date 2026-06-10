@@ -167,7 +167,7 @@ export default function UserDropdown({
         <div className="my-2 border-t border-gray-100" />
 
         <DropdownLink
-          href="/dashboard/employer"
+          href="/employer/dashboard"
           icon={BriefcaseBusiness}
           label="企業雇主中心 (Employer Console)"
           description="招募與公司職缺管理"

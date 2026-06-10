@@ -95,8 +95,8 @@ export async function POST(request: Request) {
     mode: "payment",
     customer_email: user.email,
     line_items: [lineItem],
-    success_url: `${appUrl}/dashboard/employer/billing?checkout=success`,
-    cancel_url: `${appUrl}/dashboard/employer/billing?checkout=cancelled`,
+    success_url: `${appUrl}/employer/billing?checkout=success`,
+    cancel_url: `${appUrl}/employer/billing?checkout=cancelled`,
     metadata: {
       checkout_type: "company_subscription",
       company_id: workspace.context.company.id,
@@ -110,6 +110,13 @@ export async function POST(request: Request) {
     user_id: user.id,
     stripe_session_id: session.id,
     amount: plan.amount,
+    checkout_type: "company_subscription",
+    product_type: "company_subscription",
+    plan_id: plan.id,
+    plan_name: plan.name,
+    company_id: workspace.context.company.id,
+    company_name: workspace.context.company.name,
+    tax_id: workspace.context.company.tax_id ?? null,
     status: "pending"
   });
 

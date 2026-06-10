@@ -32,7 +32,7 @@ export default function OnboardingPage() {
           </Link>
 
           <Link
-            href="/dashboard/employer"
+            href="/employer/dashboard"
             className="group rounded-lg bg-white p-6 text-left shadow-sm ring-1 ring-gray-200 transition hover:-translate-y-1 hover:shadow-md"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900 text-white">

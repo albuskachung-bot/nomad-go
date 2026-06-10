@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import DirectConnectButton from "@/components/jobs/DirectConnectButton";
 import JobApplyModal from "@/components/jobs/JobApplyModal";
 import JobInsightsPaywall from "@/components/jobs/JobInsightsPaywall";
-import { mockJobs } from "@/lib/data";
+import { getUserPlan } from "@/lib/subscription";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Company, Job } from "@/lib/types";
 
@@ -166,9 +167,12 @@ function renderJobDescription(markdownText: string) {
 export default async function JobDetailPage({ params }: JobDetailPageProps) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  let job: Job | null = mockJobs.find((item) => item.id === id) ?? null;
+  const jobClient = createSupabaseAdminClient() ?? supabase;
+  let job: Job | null = null;
   let company: Company | null = null;
   let directConnectTokens = 0;
+  let directConnectIsPro = false;
+  let currentUserId: string | null = null;
 
   if (supabase) {
     const {
@@ -176,6 +180,10 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
     } = await supabase.auth.getUser();
 
     if (user) {
+      currentUserId = user.id;
+      const userPlan = await getUserPlan(user.id);
+      directConnectIsPro = userPlan.isPro;
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("direct_connect_tokens")
@@ -184,18 +192,23 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
 
       directConnectTokens = profile?.direct_connect_tokens ?? 0;
     }
+  }
 
-    const { data } = await supabase
+  if (jobClient) {
+    const { data, error } = await jobClient
       .from("jobs")
       .select("*")
       .eq("id", id)
-      .eq("status", "published")
       .maybeSingle();
 
-    job = (data as Job | null) ?? job;
+    if (error) {
+      console.error("[jobs/detail] Failed to load published job.", error);
+    }
+
+    job = (data as Job | null) ?? null;
 
     if (job?.company_id) {
-      const { data: companyData } = await supabase
+      const { data: companyData } = await jobClient
         .from("companies")
         .select("*")
         .eq("id", job.company_id)
@@ -203,7 +216,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
 
       company = (companyData as Company | null) ?? null;
     } else if (job?.employer_id) {
-      const { data: companyData } = await supabase
+      const { data: companyData } = await jobClient
         .from("companies")
         .select("*")
         .eq("employer_id", job.employer_id)
@@ -217,7 +230,10 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
     return (
       <main className="bg-gray-50 px-4 py-16 sm:px-6 lg:px-8">
         <section className="mx-auto max-w-3xl rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-gray-200">
-          <h1 className="text-2xl font-semibold text-gray-900">找不到職缺</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">職缺已下架或不存在</h1>
+          <p className="mt-3 text-sm leading-6 text-gray-500">
+            此職缺可能已停止招募、尚未公開，或連結已失效。
+          </p>
           <Link href="/jobs" className="mt-5 inline-flex text-sm font-semibold text-blue-600">
             返回職缺列表
           </Link>
@@ -228,6 +244,8 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
 
   const companyName = company?.name ?? job.company_name ?? job.company ?? "未設定公司";
   const jobType = job.job_type ?? job.employment_type ?? "遠端職缺";
+  const canApply = job.status === "published";
+  const isStoppedRecruiting = job.status === "closed" || job.status === "draft";
 
   return (
     <main className="bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
@@ -308,15 +326,48 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <JobApplyModal
-              jobId={job.id}
-              jobTitle={job.title}
-              companyName={companyName}
-              screeningQuestions={job.screening_questions}
-              buttonClassName="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            />
-            <DirectConnectButton tokens={directConnectTokens} />
+            {canApply ? (
+              <>
+                <JobApplyModal
+                  jobId={job.id}
+                  jobTitle={job.title}
+                  companyName={companyName}
+                  screeningQuestions={job.screening_questions}
+                  buttonClassName="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                />
+                <DirectConnectButton
+                  isPro={directConnectIsPro}
+                  jobId={job.id}
+                  tokens={directConnectTokens}
+                  userId={currentUserId}
+                />
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-lg bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500"
+                >
+                  投遞已關閉
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-400"
+                >
+                  Direct Connect 已關閉
+                </button>
+              </>
+            )}
           </div>
+          {!canApply ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+              {isStoppedRecruiting
+                ? "該職缺已停止招募，暫時無法投遞履歷或主動私訊。"
+                : "該職缺尚未開放招募，暫時無法投遞履歷或主動私訊。"}
+            </div>
+          ) : null}
         </aside>
       </div>
     </main>

@@ -21,7 +21,7 @@ export type Job = {
   employer_id: string | null;
   company_id?: string | null;
   rejection_reason: string | null;
-  status: ContentStatus;
+  status: JobStatus;
   created_at: string;
 };
 
@@ -98,6 +98,7 @@ export type Tool = {
 };
 
 export type ContentStatus = "pending" | "published" | "rejected";
+export type JobStatus = "draft" | "pending" | "reviewed" | "published" | "closed" | "rejected";
 
 export type ProfileRole =
   | "member"
@@ -199,7 +200,6 @@ export type Profile = {
   is_public?: boolean;
   is_virtual_author?: boolean;
   subscription_plan?: TalentSubscriptionPlan;
-  plan_type?: "free" | "pro" | "vip" | string | null;
   direct_connect_tokens?: number | null;
   plan_expires_at?: string | null;
   free_ai_usage_count?: number;
@@ -211,6 +211,20 @@ export type Profile = {
   sponsored_until: string | null;
   stripe_customer_id: string | null;
   created_at: string;
+  updated_at: string;
+};
+
+export type PublicTalent = {
+  id: string;
+  full_name: string | null;
+  title: string | null;
+  job_title: string | null;
+  avatar_url: string | null;
+  skills: string[];
+  location: string | null;
+  timezone: string | null;
+  work_type: string[];
+  is_featured: boolean;
   updated_at: string;
 };
 
@@ -371,6 +385,18 @@ export type UsageQuotaRpcRow = {
   subscription_plan: TalentSubscriptionPlan;
 };
 
+export type DirectConnectRpcRow = {
+  application_id: string;
+  remaining_tokens: number;
+};
+
+export type CreateApplicationRpcRow = {
+  application_id: string;
+  owner_id: string;
+  job_title: string;
+  company_name: string;
+};
+
 export type OrderStatus = "pending" | "paid" | "failed";
 
 export type Order = {
@@ -379,7 +405,15 @@ export type Order = {
   stripe_session_id: string;
   amount: number;
   status: OrderStatus;
+  checkout_type: string;
   product_type?: string | null;
+  plan_id?: string | null;
+  plan_name?: string | null;
+  company_id?: string | null;
+  company_name?: string | null;
+  tax_id?: string | null;
+  stripe_customer_id?: string | null;
+  paid_at?: string | null;
   departure_at?: string | null;
   created_at: string;
 };
@@ -942,6 +976,24 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: UsageQuotaRpcRow[];
       };
+      create_application_with_notification: {
+        Args: {
+          target_job_id: string;
+          target_user_id: string;
+          target_resume_url: string;
+          target_cover_letter?: string | null;
+          target_screening_answers?: ScreeningAnswer[] | null;
+        };
+        Returns: CreateApplicationRpcRow[];
+      };
+      execute_direct_connect: {
+        Args: {
+          target_job_id: string;
+          target_user_id: string;
+          message_content?: string | null;
+        };
+        Returns: DirectConnectRpcRow[];
+      };
       set_admin_role_by_email: {
         Args: {
           target_email: string;
@@ -967,7 +1019,14 @@ export type Database = {
         Returns: void;
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      public_talents: {
+        Row: PublicTalent;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

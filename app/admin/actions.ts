@@ -5,12 +5,14 @@ import type { User } from "@supabase/supabase-js";
 import { isAdminRole, type AdminRole } from "@/lib/admin-auth";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { platformApiSettingKeys } from "@/lib/platform-settings";
+import { createResendClient, getEmailFrom } from "@/lib/resend";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   CompanyApprovalStatus,
   CompanySubscriptionPlan,
   ContentStatus,
   Database,
+  JobStatus,
   ProfileRole,
   TalentSubscriptionPlan
 } from "@/lib/types";
@@ -24,6 +26,7 @@ type ActionResult = {
 
 const curationTables: CurationTable[] = ["jobs", "guides", "talents", "profiles"];
 const statuses: ContentStatus[] = ["pending", "published", "rejected"];
+const jobStatuses: JobStatus[] = ["draft", "pending", "reviewed", "published", "closed", "rejected"];
 const companyApprovalStatuses: CompanyApprovalStatus[] = ["pending", "approved", "rejected"];
 const companySubscriptionPlans: CompanySubscriptionPlan[] = ["free", "pro", "boost"];
 const talentSubscriptionPlans: TalentSubscriptionPlan[] = ["free", "pro", "vip"];
@@ -125,7 +128,7 @@ export async function updateCompanyApprovalStatus(formData: FormData): Promise<A
 
   revalidatePath("/admin/employers");
   revalidatePath(`/admin/employers/${companyId}`);
-  revalidatePath("/dashboard/employer");
+  revalidatePath("/employer/dashboard");
 
   return {
     ok: true,
@@ -164,7 +167,7 @@ export async function updateCompanySubscriptionPlan(formData: FormData): Promise
 
   revalidatePath("/admin/companies");
   revalidatePath(`/admin/companies/${companyId}`);
-  revalidatePath("/dashboard/employer/billing");
+  revalidatePath("/employer/billing");
 
   return {
     ok: true,
@@ -221,7 +224,7 @@ export async function updateAdminContentItem(formData: FormData) {
   const table = formData.get("table")?.toString() as CurationTable;
   const id = formData.get("id")?.toString();
   const nextFeatured = formData.get("next_featured")?.toString();
-  const nextStatus = formData.get("next_status")?.toString() as ContentStatus | undefined;
+  const nextStatus = formData.get("next_status")?.toString();
 
   if (!curationTables.includes(table) || !id) {
     throw new Error("Invalid curation payload");
@@ -234,18 +237,24 @@ export async function updateAdminContentItem(formData: FormData) {
     };
   }
 
-  const update: {
+  const jobUpdate: Database["public"]["Tables"]["jobs"]["Update"] = {};
+  const contentUpdate: {
     is_featured?: boolean;
     status?: ContentStatus;
   } = {};
 
   if (nextFeatured === "true" || nextFeatured === "false") {
-    update.is_featured = nextFeatured === "true";
+    jobUpdate.is_featured = nextFeatured === "true";
+    contentUpdate.is_featured = nextFeatured === "true";
   }
 
-  if (nextStatus && statuses.includes(nextStatus)) {
-    update.status = nextStatus;
+  if (table === "jobs" && nextStatus && jobStatuses.includes(nextStatus as JobStatus)) {
+    jobUpdate.status = nextStatus as JobStatus;
+  } else if (nextStatus && statuses.includes(nextStatus as ContentStatus)) {
+    contentUpdate.status = nextStatus as ContentStatus;
   }
+
+  const update = table === "jobs" ? jobUpdate : contentUpdate;
 
   if (Object.keys(update).length === 0) {
     return {
@@ -257,22 +266,22 @@ export async function updateAdminContentItem(formData: FormData) {
   let errorMessage: string | null = null;
 
   if (table === "jobs") {
-    const { error } = await supabase.from("jobs").update(update).eq("id", id);
+    const { error } = await supabase.from("jobs").update(jobUpdate).eq("id", id);
     errorMessage = error?.message ?? null;
   }
 
   if (table === "guides") {
-    const { error } = await supabase.from("guides").update(update).eq("id", id);
+    const { error } = await supabase.from("guides").update(contentUpdate).eq("id", id);
     errorMessage = error?.message ?? null;
   }
 
   if (table === "talents") {
-    const { error } = await supabase.from("talents").update(update).eq("id", id);
+    const { error } = await supabase.from("talents").update(contentUpdate).eq("id", id);
     errorMessage = error?.message ?? null;
   }
 
   if (table === "profiles") {
-    const { error } = await supabase.from("profiles").update(update).eq("id", id);
+    const { error } = await supabase.from("profiles").update(contentUpdate).eq("id", id);
     errorMessage = error?.message ?? null;
   }
 
@@ -295,6 +304,124 @@ export async function updateAdminContentItem(formData: FormData) {
   return {
     ok: true,
     message: "已更新。"
+  };
+}
+
+export async function reviewJobAction(jobId: string): Promise<ActionResult> {
+  const context = await requireAdmin();
+
+  if (!jobId) {
+    return {
+      ok: false,
+      message: "缺少職缺 ID。"
+    };
+  }
+
+  const { data: job, error: jobError } = await context.supabase
+    .from("jobs")
+    .select("id,title,company,company_name,employer_id,company_id,status")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (jobError) {
+    return {
+      ok: false,
+      message: jobError.message
+    };
+  }
+
+  if (!job) {
+    return {
+      ok: false,
+      message: "找不到職缺。"
+    };
+  }
+
+  let ownerId = job.employer_id;
+  let companyName = job.company_name ?? job.company ?? "企業雇主";
+
+  if (job.company_id) {
+    const { data: company, error: companyError } = await context.supabase
+      .from("companies")
+      .select("name,employer_id")
+      .eq("id", job.company_id)
+      .maybeSingle();
+
+    if (companyError) {
+      return {
+        ok: false,
+        message: companyError.message
+      };
+    }
+
+    ownerId = company?.employer_id ?? ownerId;
+    companyName = company?.name ?? companyName;
+  }
+
+  const { error } = await context.supabase
+    .from("jobs")
+    .update({ status: "reviewed" })
+    .eq("id", jobId);
+
+  if (error) {
+    return {
+      ok: false,
+      message: error.message
+    };
+  }
+
+  if (ownerId) {
+    await context.supabase.from("notifications").insert({
+      user_id: ownerId,
+      type: "job_reviewed",
+      title: "職缺已完成 AI 審核",
+      message: `「${job.title}」已完成 AI 初步審核，等待營運團隊核准上架。`,
+      link_url: `/employer/jobs/${jobId}/edit`,
+      metadata: {
+        company_name: companyName,
+        job_id: jobId,
+        job_title: job.title,
+        status: "reviewed"
+      }
+    });
+
+    const resend = createResendClient();
+    const supabaseAdmin = createSupabaseAdminClient();
+
+    if (resend && supabaseAdmin) {
+      const {
+        data: { user }
+      } = await supabaseAdmin.auth.admin.getUserById(ownerId);
+
+      if (user?.email) {
+        try {
+          await resend.emails.send({
+            from: getEmailFrom(),
+            to: user.email,
+            subject: "NOMAD-GO 職缺已完成 AI 初步審核",
+            html: `
+              <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.7;">
+                <h1 style="font-size: 20px;">職缺已完成 AI 初步審核</h1>
+                <p>${companyName} 的 <strong>${job.title}</strong> 已完成 AI 初步審核。</p>
+                <p>營運團隊將接續進行人工核准，核准後職缺會公開上架。</p>
+              </div>
+            `
+          });
+        } catch (emailError) {
+          console.error("[admin/jobs] Failed to send job reviewed email.", emailError);
+        }
+      }
+    }
+  }
+
+  revalidatePath("/admin/jobs");
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/employer/jobs");
+  revalidatePath("/employer/dashboard");
+
+  return {
+    ok: true,
+    message: "AI 審核已完成，職缺狀態已更新為 reviewed。"
   };
 }
 

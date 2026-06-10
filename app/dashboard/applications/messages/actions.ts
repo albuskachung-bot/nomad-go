@@ -79,6 +79,6 @@ export async function sendApplicantMessage(formData: FormData) {
   }
 
   revalidatePath("/dashboard/applications/messages");
-  revalidatePath("/dashboard/employer/messages");
+  revalidatePath("/employer/messages");
   redirect(`/dashboard/applications/messages?application_id=${encodeURIComponent(applicationId)}`);
 }

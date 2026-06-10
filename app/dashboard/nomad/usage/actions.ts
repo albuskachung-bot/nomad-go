@@ -1,6 +1,7 @@
 "use server";
 
 import { unstable_noStore as noStore, revalidatePath } from "next/cache";
+import { getUserPlan } from "@/lib/subscription";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { TalentSubscriptionPlan, UsageQuotaRpcRow } from "@/lib/types";
 
@@ -142,9 +143,10 @@ export async function getUsageQuotaSnapshot(): Promise<UsageQuotaSnapshot> {
     });
   }
 
+  const userPlan = await getUserPlan(user.id);
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("subscription_plan,free_ai_usage_count,quota_reset_date")
+    .select("free_ai_usage_count,quota_reset_date")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -163,7 +165,7 @@ export async function getUsageQuotaSnapshot(): Promise<UsageQuotaSnapshot> {
 
   return buildSnapshot({
     isAuthenticated: true,
-    plan: profile.subscription_plan,
+    plan: userPlan.plan,
     usageCount: profile.free_ai_usage_count,
     resetDate: profile.quota_reset_date
   });

@@ -2,20 +2,23 @@ import { Check, Star, X } from "lucide-react";
 import { updateCurationItem } from "@/app/admin/actions";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { mockGuides, mockJobs, mockTalents } from "@/lib/data";
-import type { ContentStatus, Guide, Job, Talent } from "@/lib/types";
+import type { ContentStatus, Guide, Job, JobStatus, Talent } from "@/lib/types";
 
 type CurationRow = {
   id: string;
   title: string;
   subtitle: string;
   is_featured: boolean;
-  status: ContentStatus;
+  status: ContentStatus | JobStatus;
 };
 
-function statusLabel(status: ContentStatus) {
+function statusLabel(status: ContentStatus | JobStatus) {
   return {
+    draft: "草稿",
     pending: "待審核",
+    reviewed: "AI 已審核",
     published: "已發布",
+    closed: "已下架",
     rejected: "已拒絕"
   }[status];
 }

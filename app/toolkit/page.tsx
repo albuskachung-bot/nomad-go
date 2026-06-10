@@ -10,6 +10,8 @@ import {
 import WeatherCard from "@/components/WeatherCard";
 import { getTools } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 const categoryIcons = {
   "跨國網路與通訊": Router,
   "生產力與大腦擴充": Brain,

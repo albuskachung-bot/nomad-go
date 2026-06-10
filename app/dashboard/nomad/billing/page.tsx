@@ -11,6 +11,7 @@ import {
   Star,
   type LucideIcon
 } from "lucide-react";
+import { getUserPlan } from "@/lib/subscription";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type TalentPlan = "free" | "pro" | "vip";
@@ -107,10 +108,6 @@ function getHeroCopy(currentPlan: TalentPlan) {
   }
 
   return "目前使用 Free 方案。升級至 Pro 方案，讓您的履歷在企業端獲得更高的曝光率與優先推薦。";
-}
-
-function normalizeTalentPlan(value: string | null | undefined): TalentPlan {
-  return value === "pro" || value === "vip" ? value : "free";
 }
 
 export default async function NomadBillingPage() {
@@ -292,9 +289,10 @@ async function getBillingState(): Promise<BillingState> {
     };
   }
 
+  const userPlan = await getUserPlan(user.id);
   const { data, error } = await supabase
     .from("profiles")
-    .select("sponsored_until, subscription_plan, plan_expires_at, full_name, job_title, title")
+    .select("full_name, job_title, title")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -302,11 +300,6 @@ async function getBillingState(): Promise<BillingState> {
     console.error("[nomad-billing] failed to load billing state", error);
   }
 
-  const sponsoredUntil = data?.sponsored_until ?? null;
-  const sponsoredUntilDate = sponsoredUntil ? new Date(sponsoredUntil) : null;
-  const hasLegacyVip = Boolean(sponsoredUntilDate && sponsoredUntilDate > new Date());
-  const profilePlan = normalizeTalentPlan(data?.subscription_plan);
-  const currentPlan = profilePlan === "free" && hasLegacyVip ? "vip" : profilePlan;
   const metadataName =
     typeof user.user_metadata?.full_name === "string"
       ? user.user_metadata.full_name
@@ -317,10 +310,10 @@ async function getBillingState(): Promise<BillingState> {
     data?.full_name?.trim() || metadataName || user.email?.split("@")[0] || "遠距人才";
 
   return {
-    currentPlan,
+    currentPlan: userPlan.plan,
     displayName,
     jobTitle: data?.job_title?.trim() || data?.title?.trim() || null,
-    planExpiresAt: data?.plan_expires_at ?? (hasLegacyVip ? sponsoredUntil : null),
+    planExpiresAt: userPlan.planExpiresAt,
     userEmail: user.email ?? null
   };
 }

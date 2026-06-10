@@ -51,8 +51,8 @@ export async function acceptCompanyInvite(formData: FormData): Promise<ActionRes
     };
   }
 
-  revalidatePath("/dashboard/employer");
-  revalidatePath("/dashboard/employer/team");
+  revalidatePath("/employer/dashboard");
+  revalidatePath("/employer/team");
 
   return {
     ok: true,

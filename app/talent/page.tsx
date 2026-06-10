@@ -4,7 +4,6 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   Clock3,
-  ExternalLink,
   Globe2,
   MapPin,
   Sparkles,
@@ -12,7 +11,7 @@ import {
   UserRound
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Profile } from "@/lib/types";
+import type { PublicTalent } from "@/lib/types";
 
 const checklist = [
   "遠端工作技能與作品連結",
@@ -22,8 +21,8 @@ const checklist = [
 
 export const dynamic = "force-dynamic";
 
-function isVipProfile(profile: Profile) {
-  return Boolean(profile.sponsored_until && new Date(profile.sponsored_until) > new Date());
+function isVipProfile(profile: PublicTalent) {
+  return profile.is_featured;
 }
 
 function initials(name: string | null) {
@@ -39,23 +38,23 @@ function initials(name: string | null) {
     .toUpperCase();
 }
 
-function getDisplayName(profile: Profile) {
+function getDisplayName(profile: PublicTalent) {
   return profile.full_name?.trim() || "未命名人才";
 }
 
-function getJobTitle(profile: Profile) {
+function getJobTitle(profile: PublicTalent) {
   return profile.job_title?.trim() || profile.title?.trim() || "遠端工作人才";
 }
 
-function getSummary(profile: Profile) {
-  return profile.bio?.trim() || "這位人才正在補齊遠端履歷。";
+function getSummary(profile: PublicTalent) {
+  return `${getJobTitle(profile)}，目前開放遠端合作與企業邀約。`;
 }
 
-function getSkills(profile: Profile) {
+function getSkills(profile: PublicTalent) {
   return Array.isArray(profile.skills) ? profile.skills.filter(Boolean).slice(0, 5) : [];
 }
 
-function getWorkType(profile: Profile) {
+function getWorkType(profile: PublicTalent) {
   if (!Array.isArray(profile.work_type) || profile.work_type.length === 0) {
     return "開放合作";
   }
@@ -74,11 +73,8 @@ async function getPublicTalentProfiles() {
   }
 
   const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("is_public", true)
-    .eq("account_type", "nomad")
-    .eq("is_banned", false)
+    .from("public_talents")
+    .select("id, full_name, title, job_title, avatar_url, skills, location, timezone, work_type, is_featured, updated_at")
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -91,12 +87,12 @@ async function getPublicTalentProfiles() {
   }
 
   return {
-    profiles: (data ?? []) as Profile[],
+    profiles: data ?? [],
     notice: null
   };
 }
 
-function TalentCard({ profile }: { profile: Profile }) {
+function TalentCard({ profile }: { profile: PublicTalent }) {
   const isVip = isVipProfile(profile);
   const displayName = getDisplayName(profile);
   const skills = getSkills(profile);
@@ -144,17 +140,6 @@ function TalentCard({ profile }: { profile: Profile }) {
           </div>
         </div>
 
-        {profile.portfolio_url ? (
-          <a
-            href={profile.portfolio_url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-600"
-          >
-            作品集
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </a>
-        ) : null}
       </div>
 
       <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-500">

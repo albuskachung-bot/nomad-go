@@ -3,10 +3,41 @@
 
 create extension if not exists pgcrypto;
 
--- 1. 擴充現有 users/profiles 表 (假設名為 profiles)
+-- 1. 擴充現有 users/profiles 表，subscription_plan 是唯一訂閱權威欄位。
 alter table public.profiles
-add column if not exists plan_type text default 'free', -- 'free', 'pro', 'vip'
-add column if not exists direct_connect_tokens integer default 1; -- 免費版預設 1 個 token
+add column if not exists subscription_plan text not null default 'free',
+add column if not exists plan_expires_at timestamptz,
+add column if not exists direct_connect_tokens integer not null default 1; -- 免費版預設 1 個 token
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'plan_type'
+  ) then
+    execute $migration$
+      update public.profiles
+      set subscription_plan = case
+        when plan_type in ('pro', 'vip') then plan_type
+        else 'free'
+      end
+      where subscription_plan is null
+         or subscription_plan = 'free'
+    $migration$;
+
+    alter table public.profiles drop column plan_type;
+  end if;
+end $$;
+
+alter table public.profiles
+drop constraint if exists profiles_subscription_plan_check;
+
+alter table public.profiles
+add constraint profiles_subscription_plan_check
+check (subscription_plan in ('free', 'pro', 'vip'));
 
 -- 2. 建立履歷瀏覽紀錄表
 create table if not exists public.profile_views (

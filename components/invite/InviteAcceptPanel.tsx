@@ -39,7 +39,7 @@ export default function InviteAcceptPanel({ token }: InviteAcceptPanelProps) {
         type: "success",
         message: result.message
       });
-      router.push("/dashboard/employer");
+      router.push("/employer/dashboard");
       router.refresh();
     });
   }

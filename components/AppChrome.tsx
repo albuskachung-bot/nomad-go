@@ -13,8 +13,9 @@ export default function AppChrome({
   const pathname = usePathname();
   const isAdminRoute = pathname.startsWith("/admin");
   const isDashboardRoute = pathname.startsWith("/dashboard");
+  const isEmployerRoute = pathname.startsWith("/employer");
 
-  if (isAdminRoute || isDashboardRoute) {
+  if (isAdminRoute || isDashboardRoute || isEmployerRoute) {
     return <>{children}</>;
   }
 

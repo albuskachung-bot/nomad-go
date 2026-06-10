@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Loader2, Star, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import type { Job } from "@/lib/types";
+import type { Job, JobStatus } from "@/lib/types";
 
 type Toast = {
   type: "success" | "error";
   message: string;
 };
 
-const statusLabels = {
+const statusLabels: Record<JobStatus, string> = {
+  draft: "草稿",
   pending: "審核中",
+  reviewed: "AI 已審核",
   published: "已上架",
+  closed: "已下架",
   rejected: "已退回"
 };
 

@@ -19,6 +19,8 @@ type JobsPageProps = {
   }>;
 };
 
+export const dynamic = "force-dynamic";
+
 function readParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { CheckCircle2, FileText, Loader2, Send, UploadCloud, X, XCircle } from "lucide-react";
+import { createApplication } from "@/app/actions/hiring";
 import { supabase } from "@/lib/supabase/client";
 
 type JobApplyModalProps = {
@@ -150,29 +151,18 @@ export default function JobApplyModal({
 
       uploadedPath = filePath;
 
-      const { error: insertError } = await supabase.from("applications").insert({
-        job_id: jobId,
-        user_id: user.id,
-        status: "pending",
-        resume_url: filePath,
-        cover_letter: formData.get("cover_letter")?.toString().trim() || null,
-        screening_answers: screeningAnswers
+      const result = await createApplication(jobId, user.id, {
+        resumeUrl: filePath,
+        coverLetter: formData.get("cover_letter")?.toString().trim() || null,
+        screeningAnswers
       });
-
-      if (insertError) {
-        if (insertError.code === "23505") {
-          throw new Error("你已投遞過此職缺。");
-        }
-
-        throw insertError;
-      }
 
       form.reset();
       setResumeFile(null);
       setIsOpen(false);
       setToast({
         type: "success",
-        message: "應徵已送出，企業將在後台審閱你的履歷。"
+        message: result.message
       });
     } catch (error) {
       if (uploadedPath && supabase) {
