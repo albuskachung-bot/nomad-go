@@ -48,7 +48,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
   return (
     <Link
-      href="/dashboard"
+      href="/dashboard/nomad/applications/messages"
       className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
       aria-label={unreadCount > 0 ? `有 ${unreadCount} 則未讀通知` : "通知中心"}
     >
