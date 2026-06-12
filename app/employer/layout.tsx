@@ -243,15 +243,15 @@ export default function EmployerDashboardLayout({
         </nav>
       </header>
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-950 px-5 py-6 text-white lg:flex">
-        <div className="px-2">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-hidden border-r border-slate-800 bg-slate-950 px-5 py-6 text-white lg:flex">
+        <div className="shrink-0 px-2">
           <Link href="/" className="text-xl font-semibold tracking-normal">
             NOMAD-GO
           </Link>
           <p className="mt-2 text-sm text-slate-400">Employer Console</p>
         </div>
 
-        <nav className="mt-8 grid gap-2" aria-label="企業雇主中心導覽">
+        <nav className="mt-8 grid min-h-0 flex-1 gap-2 overflow-y-auto pb-4" aria-label="企業雇主中心導覽">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -278,7 +278,7 @@ export default function EmployerDashboardLayout({
           })}
         </nav>
 
-        <div className="mt-auto space-y-3">
+        <div className="shrink-0 space-y-3 border-t border-white/10 pt-4">
           <Link
             href="/"
             className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"

@@ -176,8 +176,8 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-950 px-5 py-6 text-white lg:flex">
-        <div className="px-2">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-hidden border-r border-slate-800 bg-slate-950 px-5 py-6 text-white lg:flex">
+        <div className="shrink-0 px-2">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
             NOMAD-GO
           </div>
@@ -189,7 +189,7 @@ export default function AdminLayout({
           </p>
         </div>
 
-        <nav className="mt-8 grid gap-3" aria-label="營運後台導覽">
+        <nav className="mt-8 grid min-h-0 flex-1 gap-3 overflow-y-auto pb-4" aria-label="營運後台導覽">
           {menuGroups.map((group) => {
             const isExpanded = expandedGroups.includes(group.title);
             const isGroupActive = group.items.some((item) =>
@@ -261,7 +261,7 @@ export default function AdminLayout({
           })}
         </nav>
 
-        <div className="mt-auto space-y-4">
+        <div className="shrink-0 space-y-4 border-t border-white/10 pt-4">
           <Link
             href="/"
             className="flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-3 text-slate-100 transition hover:bg-cyan-400/20 hover:text-white"
