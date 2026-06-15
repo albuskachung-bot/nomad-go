@@ -50,6 +50,7 @@ export type Notification = {
   type: string;
   title: string;
   message: string;
+  content: string;
   link_url: string | null;
   metadata: Record<string, unknown>;
   is_read: boolean;
@@ -665,8 +666,23 @@ export type Database = {
       };
       notifications: {
         Row: Notification;
-        Insert: Omit<Notification, "id" | "created_at" | "is_read"> & {
+        Insert: Omit<
+          Notification,
+          | "id"
+          | "created_at"
+          | "is_read"
+          | "title"
+          | "message"
+          | "content"
+          | "link_url"
+          | "metadata"
+        > & {
           id?: string;
+          title?: string;
+          message?: string;
+          content?: string;
+          link_url?: string | null;
+          metadata?: Record<string, unknown>;
           is_read?: boolean;
           created_at?: string;
         };

@@ -3,63 +3,65 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
+import {
+  getUnreadNotifications,
+  type UnreadNotification
+} from "@/app/actions/notifications";
 
-type NotificationDropdownProps = {
-  userId: string;
-};
+function formatNotificationTime(value: string) {
+  const date = new Date(value);
 
-const previewItems = [
-  {
-    id: "profile-views",
-    title: "👀 Cloud Harbor 等 3 家企業查看了你的履歷",
-    description: "查看最新履歷瀏覽與企業互動紀錄。"
-  },
-  {
-    id: "new-message",
-    title: "💬 Remote Ledger 傳送了一則新訊息給您",
-    description: "前往訊息中心回覆雇主邀約。"
+  if (Number.isNaN(date.getTime())) {
+    return "";
   }
-];
 
-export default function NotificationDropdown({ userId }: NotificationDropdownProps) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<UnreadNotification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadUnreadCount() {
-      if (!supabase || !userId) {
-        return;
+    async function loadNotifications() {
+      try {
+        const result = await getUnreadNotifications();
+
+        if (isMounted) {
+          if (result.error) {
+            console.error("[notifications] Failed to load unread notifications.", result.error);
+          }
+
+          setNotifications(result.notifications);
+          setUnreadCount(result.count);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("[notifications] Failed to load unread notifications.", error);
+          setNotifications([]);
+          setUnreadCount(0);
+          setIsLoading(false);
+        }
       }
-
-      const { count, error } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("is_read", false);
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        console.error("[notifications] Failed to load unread count.", error);
-        setUnreadCount(0);
-        return;
-      }
-
-      setUnreadCount(count ?? 0);
     }
 
-    void loadUnreadCount();
+    void loadNotifications();
 
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -90,8 +92,6 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     };
   }, [isOpen]);
 
-  const hasUnread = unreadCount > 0 || previewItems.length > 0;
-
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -103,15 +103,10 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         aria-haspopup="menu"
       >
         <Bell className="h-4 w-4" aria-hidden="true" />
-        {hasUnread && unreadCount > 0 ? (
+        {unreadCount > 0 ? (
           <span className="absolute right-1.5 top-1.5 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold leading-4 text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
-        ) : hasUnread ? (
-          <span
-            className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-600"
-            aria-hidden="true"
-          />
         ) : null}
       </button>
 
@@ -121,17 +116,25 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
             <p className="text-sm font-semibold text-gray-900">通知與訊息</p>
           </div>
 
-          <div className="divide-y divide-gray-100">
-            {previewItems.map((item) => (
-              <div key={item.id} className="px-4 py-3">
-                <p className="text-sm font-medium leading-5 text-gray-900">
-                  {item.title}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-gray-500">
-                  {item.description}
-                </p>
+          <div className="max-h-80 divide-y divide-gray-100 overflow-y-auto">
+            {isLoading ? (
+              <div className="px-4 py-6 text-sm text-gray-500">載入通知中...</div>
+            ) : notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div key={notification.id} className="px-4 py-3">
+                  <p className="text-sm font-medium leading-5 text-gray-900">
+                    {notification.content}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    {formatNotificationTime(notification.created_at)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-6 text-sm text-gray-500">
+                目前沒有新通知
               </div>
-            ))}
+            )}
           </div>
 
           <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">

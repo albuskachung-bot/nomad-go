@@ -132,7 +132,7 @@ export default function Header() {
 
             {user ? (
               <>
-                <NotificationDropdown userId={user.id} />
+                <NotificationDropdown />
                 <UserDropdown
                   user={user}
                   profileRole={profileRole}

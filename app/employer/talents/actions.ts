@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getEmployerWorkspaceContext,
   getWorkspaceErrorMessage
@@ -80,7 +81,33 @@ export async function triggerProfileView(targetUserId: string): Promise<TriggerP
     };
   }
 
+  const notificationContent = `${company.name || "企業雇主"} 查看了你的完整履歷`;
+  const notificationClient = createSupabaseAdminClient() ?? supabase;
+  const { error: notificationError } = await notificationClient
+    .from("notifications")
+    .insert({
+      user_id: targetUserId,
+      type: "profile_view",
+      title: "你的履歷被企業查看",
+      message: notificationContent,
+      content: notificationContent,
+      link_url: "/dashboard/nomad",
+      metadata: {
+        company_id: company.id,
+        company_name: company.name
+      },
+      is_read: false
+    });
+
+  if (notificationError) {
+    return {
+      ok: false,
+      error: getWorkspaceErrorMessage(notificationError)
+    };
+  }
+
   revalidatePath("/dashboard/nomad");
+  revalidatePath("/dashboard/nomad/applications/messages");
 
   return {
     ok: true,
