@@ -23,9 +23,12 @@ function ViewRow({ view }: { view: ProfileView }) {
           <Building2 className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-950">
+          <Link
+            href={`/companies/${view.viewer_company_id}`}
+            className="block truncate text-sm font-semibold text-slate-950 transition-colors hover:text-blue-600 hover:underline"
+          >
             {view.viewer_company_name}
-          </p>
+          </Link>
           <p className="mt-1 text-xs text-slate-500">
             {formatViewedAt(view.viewed_at)} 查看了你的履歷
           </p>
