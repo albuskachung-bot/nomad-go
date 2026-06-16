@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Sparkles, Zap } from "lucide-react";
-import { analyzeResume } from "@/app/actions/aiResumeCheck";
+import { generateResumeAudit } from "@/app/actions/aiResume";
 import {
   checkUsageQuota,
   type CheckUsageQuotaResult,
@@ -70,13 +70,13 @@ export default function NomadAiUsageCard({
   const [quota, setQuota] = useState(initialQuota);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [reportMarkdown, setReportMarkdown] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   async function handleRunAiReview() {
     setNotice(null);
-    setIsAnalyzing(true);
+    setIsLoading(true);
 
     try {
       if (!userId) {
@@ -103,7 +103,7 @@ export default function NomadAiUsageCard({
         return;
       }
 
-      const aiResult = await analyzeResume(userId);
+      const aiResult = await generateResumeAudit(userId);
 
       if (!aiResult.success) {
         setNotice({
@@ -113,7 +113,7 @@ export default function NomadAiUsageCard({
         return;
       }
 
-      setAiReport(aiResult.report);
+      setReportMarkdown(aiResult.markdown);
       setIsModalOpen(true);
       setNotice({
         type: "success",
@@ -125,7 +125,7 @@ export default function NomadAiUsageCard({
         message: error instanceof Error ? error.message : "AI 履歷健檢失敗，請稍後再試。"
       });
     } finally {
-      setIsAnalyzing(false);
+      setIsLoading(false);
     }
   }
 
@@ -166,15 +166,15 @@ export default function NomadAiUsageCard({
             <button
               type="button"
               onClick={handleRunAiReview}
-              disabled={isAnalyzing || !quota.isAuthenticated || !userId}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={isLoading || !quota.isAuthenticated || !userId}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
             >
-              {isAnalyzing ? (
+              {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
                 <Zap className="h-4 w-4 text-blue-600" aria-hidden="true" />
               )}
-              {isAnalyzing ? "分析中..." : "啟動健檢"}
+              {isLoading ? "AI 正在健檢中..." : "啟動健檢"}
             </button>
           </div>
         </div>
@@ -202,12 +202,12 @@ export default function NomadAiUsageCard({
 
       {isModalOpen ? (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="ai-resume-report-title"
         >
-          <div className="flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="border-b border-slate-200 px-6 py-5">
               <h2
                 id="ai-resume-report-title"
@@ -221,8 +221,8 @@ export default function NomadAiUsageCard({
             </div>
 
             <div className="overflow-y-auto px-6 py-5">
-              <div className="whitespace-pre-line rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-700 ring-1 ring-slate-200">
-                {aiReport}
+              <div className="prose prose-slate max-w-none whitespace-pre-wrap rounded-xl bg-slate-50 p-5 text-sm leading-7 ring-1 ring-slate-200 prose-headings:tracking-normal prose-h1:text-xl prose-h2:text-lg prose-strong:text-slate-950">
+                {reportMarkdown}
               </div>
             </div>
 
@@ -237,9 +237,9 @@ export default function NomadAiUsageCard({
               <a
                 href="#resume-form"
                 onClick={() => setIsModalOpen(false)}
-                className="inline-flex justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
-                立即去修改履歷
+                關閉並開始修改履歷
               </a>
             </div>
           </div>

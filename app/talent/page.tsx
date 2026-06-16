@@ -10,7 +10,7 @@ import {
   Star,
   UserRound
 } from "lucide-react";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabasePublicServerClient } from "@/lib/supabase/server";
 import type { PublicTalent } from "@/lib/types";
 
 const checklist = [
@@ -64,7 +64,7 @@ function getWorkType(profile: PublicTalent) {
 }
 
 async function getPublicTalentProfiles() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
 
   if (!supabase) {
     return {
@@ -74,17 +74,21 @@ async function getPublicTalentProfiles() {
   }
 
   const { data, error } = await supabase
-    .from("public_talents")
+    .from("profiles")
     .select(
-      "id, full_name, title, job_title, avatar_url, skills, location, timezone, work_type, is_featured, is_featured_talent, featured_sort_order, account_type, status, is_public, updated_at"
+      "id, full_name, title, job_title, avatar_url, skills, location, timezone, work_type, is_featured, is_featured_talent, featured_sort_order, account_type, status, is_public, updated_at, created_at"
     )
     .eq("is_public", true)
     .eq("status", "published")
-    .in("account_type", ["talent", "nomad"])
-    .order("updated_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[talent] Failed to load public talent profiles.", error);
+    console.error("🔥 Talent Fetch Error:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
 
     return {
       profiles: [],
@@ -93,7 +97,7 @@ async function getPublicTalentProfiles() {
   }
 
   return {
-    profiles: data ?? [],
+    profiles: (data ?? []) as PublicTalent[],
     notice: null
   };
 }

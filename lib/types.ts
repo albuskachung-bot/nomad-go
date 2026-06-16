@@ -244,6 +244,7 @@ export type Company = {
   logo_url: string | null;
   banner_url?: string | null;
   website: string | null;
+  website_url?: string | null;
   description: string | null;
   approval_status: CompanyApprovalStatus;
   industry?: string | null;

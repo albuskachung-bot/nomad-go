@@ -1,96 +1,89 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  BriefcaseBusiness,
-  Building2,
-  Globe2,
-  MapPin,
-  PlayCircle,
-  Sparkles,
-  Users,
-  Wifi,
-  Wrench
-} from "lucide-react";
-import {
-  getApprovedCompanyProfile,
-  getCompanySummary,
-  getWebsiteHref
-} from "@/lib/company-directory";
+import { ArrowLeft, ArrowUpRight, BriefcaseBusiness, Globe2, MapPin } from "lucide-react";
+import { createSupabasePublicServerClient } from "@/lib/supabase/server";
+import type { Job } from "@/lib/types";
 
-type CompanyDetailPageProps = {
+export const dynamic = "force-dynamic";
+
+type CompanyBrandProfile = {
+  id: string;
+  name: string;
+  description: string | null;
+  logo_url: string | null;
+  website: string | null;
+  website_url?: string | null;
+  industry: string | null;
+  subscription_plan: string | null;
+  approval_status: string;
+};
+
+type CompanyPageProps = {
   params: Promise<{
     id: string;
   }>;
 };
 
-export const dynamic = "force-dynamic";
+function getWebsiteHref(value: string | null | undefined) {
+  const website = value?.trim();
 
-function getCultureVideoEmbedUrl(videoUrl: string | null | undefined) {
-  const trimmedUrl = videoUrl?.trim();
-
-  if (!trimmedUrl) {
+  if (!website) {
     return null;
   }
 
-  try {
-    const url = new URL(trimmedUrl);
-    const hostname = url.hostname.replace(/^www\./, "");
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
+}
 
-    if (hostname === "youtu.be") {
-      const videoId = url.pathname.split("/").filter(Boolean)[0];
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-    }
+async function getCompanyProfile(companyId: string) {
+  const supabase = createSupabasePublicServerClient();
 
-    if (hostname === "youtube.com" || hostname === "m.youtube.com") {
-      if (url.pathname === "/watch") {
-        const videoId = url.searchParams.get("v");
-        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-      }
-
-      if (url.pathname.startsWith("/shorts/")) {
-        const videoId = url.pathname.split("/").filter(Boolean)[1];
-        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-      }
-
-      if (url.pathname.startsWith("/embed/")) {
-        return url.toString();
-      }
-    }
-
-    return url.toString();
-  } catch {
+  if (!supabase) {
     return null;
   }
+
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .select(
+      "id, name, description, logo_url, website, website_url, industry, subscription_plan, approval_status"
+    )
+    .eq("id", companyId)
+    .eq("approval_status", "approved")
+    .maybeSingle();
+
+  if (companyError) {
+    console.error("[companies/detail] Unable to load approved company.", companyError);
+    return null;
+  }
+
+  if (!company) {
+    return null;
+  }
+
+  const { data: jobs, error: jobsError } = await supabase
+    .from("jobs")
+    .select("id, title, location, employment_type, job_type, salary_range, tags, status, company_id")
+    .eq("company_id", company.id)
+    .eq("status", "published")
+    .order("created_at", { ascending: false });
+
+  if (jobsError) {
+    console.error("[companies/detail] Unable to load company jobs.", jobsError);
+  }
+
+  return {
+    company: company as CompanyBrandProfile,
+    jobs: (jobs ?? []) as Pick<
+      Job,
+      "id" | "title" | "location" | "employment_type" | "job_type" | "salary_range" | "tags"
+    >[]
+  };
 }
 
-function getJobPreviewText(description: string | null | undefined) {
-  return (description ?? "")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/[*_`>~]/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, "\"")
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export async function generateMetadata({
-  params
-}: CompanyDetailPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: CompanyPageProps): Promise<Metadata> {
   const { id } = await params;
-  const profile = await getApprovedCompanyProfile(id);
+  const profile = await getCompanyProfile(id);
 
   if (!profile) {
     return {
@@ -99,374 +92,190 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${profile.company.name} | NOMAD-GO 企業專頁`,
-    description: getCompanySummary(profile.company.description, 140)
+    title: `${profile.company.name} | NOMAD-GO 企業品牌專頁`,
+    description:
+      profile.company.description ??
+      "探索 NOMAD-GO 上已通過審核的遠端友善企業。"
   };
 }
 
-export default async function CompanyDetailPage({ params }: CompanyDetailPageProps) {
+export default async function CompanyBrandPage({ params }: CompanyPageProps) {
   const { id } = await params;
-  const profile = await getApprovedCompanyProfile(id);
+  const profile = await getCompanyProfile(id);
 
   if (!profile) {
     notFound();
   }
 
-  const { company, publishedJobs, benefitTags, industry } = profile;
-  const websiteHref = getWebsiteHref(company.website);
-  const headquarters = company.hq_location ?? company.headquarters ?? "尚未提供";
-  const remotePolicy =
-    company.remote_policy ?? "此企業尚未補充遠距政策，請參考下方職缺內容或後續面談資訊。";
-  const bannerUrl = company.banner_url?.trim();
-  const cultureVideoEmbedUrl = getCultureVideoEmbedUrl(company.culture_video_url);
-  const techStack = company.tech_stack ?? [];
-  const teamLocations = company.team_locations ?? [];
+  const { company, jobs } = profile;
+  const industry = company.industry?.trim() || "遠端友善企業";
+  const website = company.website_url ?? company.website;
+  const websiteHref = getWebsiteHref(website);
+  const isProCompany = company.subscription_plan === "pro";
+  const initial = company.name.trim().charAt(0).toUpperCase() || "N";
 
   return (
-    <div className="bg-gray-50">
-      <section className="border-b border-gray-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-slate-50">
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
           <Link
             href="/companies"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             返回企業總覽
           </Link>
 
-          {bannerUrl ? (
-            <div className="relative mt-4 mb-6 h-48 w-full overflow-hidden rounded-xl bg-gray-100 md:h-64">
-              <Image
-                src={bannerUrl}
-                alt={`${company.name} 品牌橫幅`}
-                fill
-                sizes="(min-width: 1280px) 1280px, 100vw"
-                className="object-cover"
-                unoptimized
-              />
-            </div>
-          ) : null}
-
-          <div
-            className={`grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end ${
-              bannerUrl ? "mt-0" : "mt-8"
-            }`}
-          >
-            <div>
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                {company.logo_url ? (
-                  <div
-                    className="h-20 w-20 rounded-lg bg-gray-100 bg-contain bg-center bg-no-repeat ring-1 ring-gray-200"
-                    style={{ backgroundImage: `url(${company.logo_url})` }}
-                    aria-hidden="true"
+          <div className="mt-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
+              {company.logo_url ? (
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
+                  <Image
+                    src={company.logo_url}
+                    alt={`${company.name} logo`}
+                    fill
+                    sizes="80px"
+                    className="object-contain p-3"
+                    unoptimized
                   />
-                ) : (
-                  <span className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <Building2 className="h-9 w-9" aria-hidden="true" />
-                  </span>
-                )}
-
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-                    Approved Employer
-                  </p>
-                  <h1 className="mt-2 text-4xl font-semibold tracking-normal text-gray-900 sm:text-5xl">
-                    {company.name}
-                  </h1>
                 </div>
-              </div>
-
-              <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <InfoPill icon={Sparkles} label="產業類別" value={industry} />
-                <InfoPill icon={Users} label="公司規模" value={company.company_size ?? "尚未提供"} />
-                <InfoPill icon={MapPin} label="總部位置" value={headquarters} />
-                <InfoPill icon={BriefcaseBusiness} label="開放職缺" value={`${publishedJobs.length} 個`} />
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-gray-50 p-5 ring-1 ring-gray-100">
-              <p className="text-sm font-semibold text-gray-900">官方網站</p>
-              {websiteHref ? (
-                <a
-                  href={websiteHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  <Globe2 className="h-4 w-4" aria-hidden="true" />
-                  {company.website}
-                  <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                </a>
               ) : (
-                <p className="mt-3 text-sm text-gray-500">尚未提供官網連結</p>
+                <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-3xl font-semibold text-white">
+                  {initial}
+                </span>
               )}
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+                    {industry}
+                  </span>
+                  {isProCompany ? (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
+                      ✨ 認證遊牧雇主 (Verified Pro)
+                    </span>
+                  ) : null}
+                </div>
+                <h1 className="mt-3 text-4xl font-semibold tracking-normal text-slate-950 sm:text-5xl">
+                  {company.name}
+                </h1>
+              </div>
             </div>
+
+            {websiteHref ? (
+              <a
+                href={websiteHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-fit items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-700"
+              >
+                <Globe2 className="h-4 w-4" aria-hidden="true" />
+                前往官方網站
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
         <div className="space-y-6">
-          <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
-            <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
-              文化與公司介紹
+          <article className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h2 className="text-2xl font-semibold tracking-normal text-slate-950">
+              關於我們
             </h2>
-            <p className="mt-5 whitespace-pre-line text-base leading-8 text-gray-600">
-              {company.description ?? "這間企業正在完善品牌介紹，歡迎先查看目前開放的遠端職缺。"}
+            <p className="mt-5 whitespace-pre-line text-base leading-8 text-slate-600">
+              {company.description ??
+                "這間企業正在完善品牌介紹。你可以先查看下方目前招募中的遠端職缺，或稍後回來了解更多企業文化與團隊資訊。"}
             </p>
-          </section>
+          </article>
 
-          {cultureVideoEmbedUrl ? (
-            <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
-              <div className="flex items-center gap-2">
-                <PlayCircle className="h-5 w-5 text-blue-600" aria-hidden="true" />
-                <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
-                  團隊文化影片
+          <article className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+                  Open Roles
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950">
+                  目前招募中的遠端職缺
                 </h2>
               </div>
-              <div className="mt-5 aspect-video overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200">
-                <iframe
-                  src={cultureVideoEmbedUrl}
-                  title={`${company.name} 團隊文化影片`}
-                  className="h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              </div>
-            </section>
-          ) : null}
-
-          <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
-            <div className="flex items-center gap-2">
-              <Wifi className="h-5 w-5 text-blue-600" aria-hidden="true" />
-              <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
-                遠距政策
-              </h2>
+              <Link
+                href="/jobs"
+                className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+              >
+                查看全部職缺
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
             </div>
-            <p className="mt-5 text-base leading-8 text-gray-600">{remotePolicy}</p>
-          </section>
 
-          {(techStack.length > 0 || teamLocations.length > 0) ? (
-            <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
-              <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
-                遠距文化展廳
-              </h2>
-              <div className="mt-6 grid gap-7 md:grid-cols-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Wrench className="h-5 w-5 text-blue-600" aria-hidden="true" />
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      技術 / 工具牆
-                    </h3>
-                  </div>
-                  {techStack.length > 0 ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {techStack.map((tool) => (
-                        <span
-                          key={tool}
-                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
-                        >
-                          {tool}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-sm leading-6 text-gray-500">
-                      此企業尚未補充常用協作工具。
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Globe2 className="h-5 w-5 text-blue-600" aria-hidden="true" />
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      團隊分布
-                    </h3>
-                  </div>
-                  {teamLocations.length > 0 ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {teamLocations.map((location) => (
-                        <span
-                          key={location}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100"
-                        >
-                          <MapPin className="h-3 w-3" aria-hidden="true" />
-                          {location}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-sm leading-6 text-gray-500">
-                      此企業尚未補充團隊地點分布。
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          <section className="rounded-lg bg-white p-7 shadow-sm ring-1 ring-gray-100">
-            <h2 className="text-2xl font-semibold tracking-normal text-gray-900">
-              福利標籤
-            </h2>
-            {benefitTags.length > 0 ? (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {benefitTags.map((benefit) => (
-                  <span
-                    key={benefit}
-                    className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+            {jobs.length > 0 ? (
+              <div className="mt-6 grid gap-3">
+                {jobs.map((job) => (
+                  <Link
+                    key={job.id}
+                    href={`/jobs/${job.id}`}
+                    className="group rounded-lg border border-slate-200 p-4 transition hover:border-blue-200 hover:bg-blue-50/40"
                   >
-                    {benefit}
-                  </span>
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950 group-hover:text-blue-700">
+                          {job.title}
+                        </h3>
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-slate-500">
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin className="h-4 w-4" aria-hidden="true" />
+                            {job.location || "Remote"}
+                          </span>
+                          <span>{job.employment_type ?? job.job_type ?? "遠端職缺"}</span>
+                          {job.salary_range ? <span>{job.salary_range}</span> : null}
+                        </div>
+                      </div>
+                      <ArrowUpRight
+                        className="h-4 w-4 text-slate-400 transition group-hover:text-blue-600"
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </Link>
                 ))}
               </div>
             ) : (
-              <p className="mt-5 text-sm leading-6 text-gray-500">
-                此企業尚未補充福利標籤，請參考下方職缺描述。
+              <p className="mt-6 rounded-lg bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500 ring-1 ring-slate-100">
+                目前尚無公開職缺，或職缺撈取邏輯建置中。
               </p>
             )}
-          </section>
+          </article>
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100">
-            <h2 className="text-base font-semibold text-gray-900">企業摘要</h2>
+          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h2 className="text-base font-semibold text-slate-950">企業摘要</h2>
             <dl className="mt-5 space-y-4 text-sm">
               <SummaryRow label="產業" value={industry} />
-              <SummaryRow label="規模" value={company.company_size ?? "尚未提供"} />
-              <SummaryRow label="總部" value={headquarters} />
-              <SummaryRow label="職缺" value={`${publishedJobs.length} 個上架中`} />
+              <SummaryRow label="認證狀態" value={isProCompany ? "Verified Pro" : "Approved"} />
+              <SummaryRow label="公開職缺" value={`${jobs.length} 個`} />
             </dl>
+            <div className="mt-6 rounded-lg bg-blue-50 p-4 text-sm leading-6 text-blue-900 ring-1 ring-blue-100">
+              <div className="flex items-center gap-2 font-semibold">
+                <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
+                遠端友善雇主
+              </div>
+              <p className="mt-2 text-blue-800">
+                此企業已通過 NOMAD-GO 入駐審核，可放心查看品牌資訊與公開職缺。
+              </p>
+            </div>
           </div>
         </aside>
       </section>
-
-      <section className="border-t border-gray-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-                Open Roles
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-normal text-gray-900">
-                現有職缺清單
-              </h2>
-            </div>
-            <Link
-              href="/jobs"
-              className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
-            >
-              查看所有遠端職缺
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-
-          {publishedJobs.length > 0 ? (
-            <div className="grid gap-4">
-              {publishedJobs.map((job) => {
-                const previewText =
-                  getJobPreviewText(job.description) ||
-                  "此職缺尚未提供摘要，請點擊查看完整職缺內容。";
-
-                return (
-                  <article
-                    key={job.id}
-                    className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
-                  >
-                    <div className="flex flex-col justify-between gap-5 md:flex-row">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-                            {job.job_type}
-                          </span>
-                          {job.salary_range ? (
-                            <span className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
-                              {job.salary_range}
-                            </span>
-                          ) : null}
-                        </div>
-                        <h3 className="mt-4 text-2xl font-semibold tracking-normal text-gray-900">
-                          <Link href={`/jobs/${job.id}`} className="hover:text-blue-600">
-                            {job.title}
-                          </Link>
-                        </h3>
-                        <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
-                          <span className="inline-flex items-center gap-1.5">
-                            <Building2 className="h-4 w-4" aria-hidden="true" />
-                            {company.name}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <MapPin className="h-4 w-4" aria-hidden="true" />
-                            {job.location}
-                          </span>
-                        </div>
-                        <p className="mt-4 line-clamp-3 max-w-3xl text-sm leading-relaxed text-slate-500">
-                          {previewText}
-                        </p>
-                        <div className="mt-5 flex flex-wrap gap-2">
-                          {job.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <Link
-                        href={`/jobs/${job.id}`}
-                        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-600"
-                      >
-                        查看詳情
-                        <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-lg bg-gray-50 px-6 py-12 text-center ring-1 ring-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900">
-                目前沒有上架中的職缺
-              </h3>
-              <p className="mt-2 text-sm text-gray-500">
-                你可以稍後回來查看，或先瀏覽其他遠端友善企業。
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function InfoPill({
-  icon: Icon,
-  label,
-  value
-}: {
-  icon: typeof Sparkles;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-lg bg-gray-50 p-4 ring-1 ring-gray-100">
-      <Icon className="h-4 w-4 text-blue-600" aria-hidden="true" />
-      <p className="mt-3 text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-gray-900">{value}</p>
-    </div>
+    </main>
   );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-right font-semibold text-gray-900">{value}</dd>
+    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="text-right font-semibold text-slate-950">{value}</dd>
     </div>
   );
 }

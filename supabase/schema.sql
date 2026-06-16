@@ -71,7 +71,9 @@ create table if not exists public.companies (
   name text not null,
   logo_url text,
   website text,
+  website_url text,
   description text,
+  industry text,
   approval_status text not null default 'pending'
     constraint companies_approval_status_check
     check (approval_status in ('pending', 'approved', 'rejected')),
@@ -510,7 +512,13 @@ begin
   into approval_status_column_exists;
 
   alter table public.companies
-    add column if not exists approval_status text default 'pending';
+  add column if not exists approval_status text default 'pending';
+
+  alter table public.companies
+    add column if not exists description text,
+    add column if not exists logo_url text,
+    add column if not exists website_url text,
+    add column if not exists industry text;
 
   if approval_status_column_exists then
     update public.companies
@@ -1159,6 +1167,7 @@ alter table public.messages enable row level security;
 alter table public.notifications enable row level security;
 
 drop policy if exists profiles_public_read_talent on public.profiles;
+drop policy if exists "Allow public to read public profiles" on public.profiles;
 drop policy if exists profiles_employer_read_applicants on public.profiles;
 drop policy if exists jobs_public_read on public.jobs;
 drop policy if exists jobs_employer_read_own on public.jobs;
@@ -1213,6 +1222,12 @@ revoke all on public.messages from authenticated;
 grant select, insert on public.messages to authenticated;
 grant update (is_read) on public.messages to authenticated;
 grant select, update on public.notifications to authenticated;
+grant select on public.profiles to anon, authenticated;
+
+create policy "Allow public to read public profiles"
+  on public.profiles
+  for select
+  using (is_public = true and status = 'published');
 
 create policy platform_settings_super_admin_select
   on public.platform_settings
