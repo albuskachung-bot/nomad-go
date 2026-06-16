@@ -7,7 +7,6 @@ import {
   Briefcase,
   Building2,
   Home,
-  Map,
   Settings,
   Users
 } from "lucide-react";
@@ -17,7 +16,6 @@ const baseItems = [
   { href: "/admin", label: "總覽儀表板", icon: BarChart3 },
   { href: "/admin/jobs", label: "職缺審核", icon: Briefcase },
   { href: "/admin/talent", label: "人才庫管理", icon: Users },
-  { href: "/admin/guides", label: "城市指南管理", icon: Map },
   { href: "/admin/settings", label: "全站設定", icon: Settings }
 ];
 

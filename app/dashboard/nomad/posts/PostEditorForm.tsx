@@ -53,6 +53,13 @@ const supportedCoverTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const htmlTagPattern =
   /<\/?(?:article|aside|blockquote|br|code|div|em|figcaption|figure|h[1-6]|hr|iframe|img|li|ol|p|pre|section|span|strong|table|tbody|td|th|thead|tr|ul|a|b|i)\b[^>]*>/i;
 
+const postCategoryOptions = [
+  { value: "general", label: "一般專欄" },
+  { value: "city_guide", label: "城市指南" },
+  { value: "career", label: "職涯發展" },
+  { value: "nomad_life", label: "遊牧生活" }
+];
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -94,6 +101,7 @@ export default function PostEditorForm({
   const initialAuthorId = post?.author_id ?? authorOptions[0]?.id ?? "";
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
+  const [category, setCategory] = useState(post?.category ?? "general");
   const [content, setContent] = useState(initialContent);
   const [editorMode, setEditorMode] = useState<EditorMode>(
     getInitialEditorMode(initialContent)
@@ -373,6 +381,22 @@ export default function PostEditorForm({
             <span className="mt-2 block text-xs leading-5 text-slate-500">
               建議使用簡短英文、數字與橫線。未填寫時會自動產生安全網址。
             </span>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-900">文章分類</span>
+            <select
+              name="category"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+            >
+              {postCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <div>

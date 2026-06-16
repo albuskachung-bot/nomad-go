@@ -1,9 +1,16 @@
 import { getUsageQuotaSnapshot } from "@/app/dashboard/nomad/usage/actions";
 import NomadAiUsageCard from "@/components/dashboard/NomadAiUsageCard";
 import ProfileEditForm from "@/components/ProfileEditForm";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function MemberResumePage() {
   const quotaSnapshot = await getUsageQuotaSnapshot();
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = supabase
+    ? await supabase.auth.getUser()
+    : { data: { user: null } };
 
   return (
     <div>
@@ -20,10 +27,12 @@ export default async function MemberResumePage() {
       </div>
 
       <div className="mb-6">
-        <NomadAiUsageCard initialQuota={quotaSnapshot} />
+        <NomadAiUsageCard initialQuota={quotaSnapshot} userId={user?.id ?? null} />
       </div>
 
-      <ProfileEditForm />
+      <div id="resume-form">
+        <ProfileEditForm />
+      </div>
     </div>
   );
 }

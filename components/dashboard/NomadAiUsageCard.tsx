@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Sparkles, Zap } from "lucide-react";
+import { analyzeResume } from "@/app/actions/aiResumeCheck";
 import {
   checkUsageQuota,
   type CheckUsageQuotaResult,
@@ -11,6 +12,7 @@ import PaywallModal from "@/components/billing/PaywallModal";
 
 type NomadAiUsageCardProps = {
   initialQuota: UsageQuotaSnapshot;
+  userId: string | null;
 };
 
 type Notice = {
@@ -61,16 +63,30 @@ function toSnapshot(result: CheckUsageQuotaResult): UsageQuotaSnapshot {
   };
 }
 
-export default function NomadAiUsageCard({ initialQuota }: NomadAiUsageCardProps) {
+export default function NomadAiUsageCard({
+  initialQuota,
+  userId
+}: NomadAiUsageCardProps) {
   const [quota, setQuota] = useState(initialQuota);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  function handleRunAiReview() {
+  async function handleRunAiReview() {
     setNotice(null);
+    setIsAnalyzing(true);
 
-    startTransition(async () => {
+    try {
+      if (!userId) {
+        setNotice({
+          type: "error",
+          message: "請先登入後再使用 AI 履歷健檢。"
+        });
+        return;
+      }
+
       const result = await checkUsageQuota();
       setQuota(toSnapshot(result));
 
@@ -87,13 +103,30 @@ export default function NomadAiUsageCard({ initialQuota }: NomadAiUsageCardProps
         return;
       }
 
+      const aiResult = await analyzeResume(userId);
+
+      if (!aiResult.success) {
+        setNotice({
+          type: "error",
+          message: aiResult.error
+        });
+        return;
+      }
+
+      setAiReport(aiResult.report);
+      setIsModalOpen(true);
       setNotice({
         type: "success",
-        message: result.isUnlimited
-          ? "AI 履歷健檢已啟動。"
-          : `${result.message} AI 履歷健檢已啟動。`
+        message: "AI 履歷健檢已完成。"
       });
-    });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "AI 履歷健檢失敗，請稍後再試。"
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   return (
@@ -133,15 +166,15 @@ export default function NomadAiUsageCard({ initialQuota }: NomadAiUsageCardProps
             <button
               type="button"
               onClick={handleRunAiReview}
-              disabled={isPending || !quota.isAuthenticated}
+              disabled={isAnalyzing || !quota.isAuthenticated || !userId}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isPending ? (
+              {isAnalyzing ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
                 <Zap className="h-4 w-4 text-blue-600" aria-hidden="true" />
               )}
-              {isPending ? "檢查額度中..." : "啟動健檢"}
+              {isAnalyzing ? "分析中..." : "啟動健檢"}
             </button>
           </div>
         </div>
@@ -166,6 +199,52 @@ export default function NomadAiUsageCard({ initialQuota }: NomadAiUsageCardProps
       </section>
 
       <PaywallModal open={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} />
+
+      {isModalOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ai-resume-report-title"
+        >
+          <div className="flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-6 py-5">
+              <h2
+                id="ai-resume-report-title"
+                className="text-xl font-semibold tracking-normal text-slate-950"
+              >
+                ✨ AI 履歷健檢報告
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                依據目前履歷內容產生的初步建議，請依實際職涯定位調整。
+              </p>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-5">
+              <div className="whitespace-pre-line rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-700 ring-1 ring-slate-200">
+                {aiReport}
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="inline-flex justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                關閉
+              </button>
+              <a
+                href="#resume-form"
+                onClick={() => setIsModalOpen(false)}
+                className="inline-flex justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                立即去修改履歷
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

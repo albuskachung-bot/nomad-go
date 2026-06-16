@@ -1,15 +1,27 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { CircleAlert, Plus, UserRound } from "lucide-react";
+import { CircleAlert, Star, UserRound } from "lucide-react";
 import { getCurrentAdminContext } from "@/lib/admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { TalentPool } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type TalentPoolResult = {
-  talents: TalentPool[];
+type TalentUser = {
+  id: string;
+  full_name: string | null;
+  title: string | null;
+  job_title: string | null;
+  timezone: string | null;
+  skills: string[] | null;
+  avatar_url: string | null;
+  is_featured_talent: boolean | null;
+  featured_sort_order: number | null;
+  created_at: string;
+};
+
+type TalentUsersResult = {
+  users: TalentUser[];
   error: string | null;
 };
 
@@ -17,25 +29,16 @@ function readText(value: FormDataEntryValue | null) {
   return value?.toString().trim() ?? "";
 }
 
-function readOptionalText(value: FormDataEntryValue | null) {
-  const text = readText(value);
-  return text.length > 0 ? text : null;
+function getDisplayName(user: TalentUser) {
+  return user.full_name?.trim() || "未命名使用者";
 }
 
-function readSortOrder(value: FormDataEntryValue | null) {
-  const sortOrder = Number.parseInt(readText(value), 10);
-  return Number.isFinite(sortOrder) ? sortOrder : 0;
+function getJobTitle(user: TalentUser) {
+  return user.job_title?.trim() || user.title?.trim() || "尚未填寫職稱";
 }
 
-function readSkills(value: FormDataEntryValue | null) {
-  return readText(value)
-    .split(",")
-    .map((skill) => skill.trim())
-    .filter(Boolean);
-}
-
-function formatSkills(skills: string[]) {
-  return skills.join(", ");
+function getSkills(skills: string[] | null) {
+  return Array.isArray(skills) ? skills.filter(Boolean).slice(0, 4) : [];
 }
 
 async function requireHomeContentAdmin() {
@@ -54,80 +57,42 @@ async function requireHomeContentAdmin() {
   };
 }
 
-async function getTalentPool(): Promise<TalentPoolResult> {
+async function getTalentUsers(): Promise<TalentUsersResult> {
   const { supabase } = await requireHomeContentAdmin();
   const { data, error } = await supabase
-    .from("talent_pool")
-    .select("*")
-    .order("sort_order", { ascending: true });
+    .from("profiles")
+    .select(
+      "id, full_name, title, job_title, timezone, skills, avatar_url, is_featured_talent, featured_sort_order, created_at"
+    )
+    .order("created_at", { ascending: false });
 
   if (error) {
     return {
-      talents: [],
+      users: [],
       error: error.message
     };
   }
 
   return {
-    talents: data ?? [],
+    users: (data ?? []) as TalentUser[],
     error: null
   };
 }
 
-async function createTalentPoolItem(formData: FormData) {
-  "use server";
-
-  const { supabase } = await requireHomeContentAdmin();
-  const fullName = readText(formData.get("full_name"));
-  const jobTitle = readText(formData.get("job_title"));
-  const timezone = readText(formData.get("timezone"));
-  const availableHours = readText(formData.get("available_hours"));
-
-  if (!fullName || !jobTitle || !timezone || !availableHours) {
-    redirect("/admin/talents?error=missing-required-fields");
-  }
-
-  const { error } = await supabase.from("talent_pool").insert({
-    full_name: fullName,
-    job_title: jobTitle,
-    timezone,
-    available_hours: availableHours,
-    skills: readSkills(formData.get("skills")),
-    avatar_url: readOptionalText(formData.get("avatar_url")),
-    is_active: formData.get("is_active") === "on",
-    sort_order: readSortOrder(formData.get("sort_order"))
-  });
-
-  if (error) {
-    redirect(`/admin/talents?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/", "layout");
-  revalidatePath("/admin/talents");
-  redirect("/admin/talents?created=1");
-}
-
-async function updateTalentPoolItem(formData: FormData) {
+async function toggleFeaturedTalent(formData: FormData) {
   "use server";
 
   const { supabase } = await requireHomeContentAdmin();
   const id = readText(formData.get("id"));
+  const nextFeatured = formData.get("next_featured") === "true";
 
   if (!id) {
-    redirect("/admin/talents?error=missing-talent-id");
+    redirect("/admin/talents?error=missing-user-id");
   }
 
   const { error } = await supabase
-    .from("talent_pool")
-    .update({
-      full_name: readText(formData.get("full_name")),
-      job_title: readText(formData.get("job_title")),
-      timezone: readText(formData.get("timezone")),
-      available_hours: readText(formData.get("available_hours")),
-      skills: readSkills(formData.get("skills")),
-      avatar_url: readOptionalText(formData.get("avatar_url")),
-      sort_order: readSortOrder(formData.get("sort_order"))
-    })
+    .from("profiles")
+    .update({ is_featured_talent: nextFeatured })
     .eq("id", id);
 
   if (error) {
@@ -135,79 +100,9 @@ async function updateTalentPoolItem(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
+  revalidatePath("/talent");
   revalidatePath("/admin/talents");
   redirect("/admin/talents?updated=1");
-}
-
-async function toggleTalentPoolActive(formData: FormData) {
-  "use server";
-
-  const { supabase } = await requireHomeContentAdmin();
-  const id = readText(formData.get("id"));
-  const nextActive = formData.get("next_active") === "true";
-
-  if (!id) {
-    redirect("/admin/talents?error=missing-talent-id");
-  }
-
-  const { error } = await supabase
-    .from("talent_pool")
-    .update({ is_active: nextActive })
-    .eq("id", id);
-
-  if (error) {
-    redirect(`/admin/talents?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/", "layout");
-  revalidatePath("/admin/talents");
-  redirect("/admin/talents?updated=1");
-}
-
-async function deleteTalentPoolItem(formData: FormData) {
-  "use server";
-
-  const { supabase } = await requireHomeContentAdmin();
-  const id = readText(formData.get("id"));
-
-  if (!id) {
-    redirect("/admin/talents?error=missing-talent-id");
-  }
-
-  const { error } = await supabase.from("talent_pool").delete().eq("id", id);
-
-  if (error) {
-    redirect(`/admin/talents?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/", "layout");
-  revalidatePath("/admin/talents");
-  redirect("/admin/talents?deleted=1");
-}
-
-function TextInput({
-  name,
-  defaultValue,
-  placeholder,
-  required = false,
-  form
-}: {
-  name: string;
-  defaultValue?: string | number;
-  placeholder?: string;
-  required?: boolean;
-  form?: string;
-}) {
-  return (
-    <input
-      form={form}
-      name={name}
-      defaultValue={defaultValue}
-      placeholder={placeholder}
-      required={required}
-      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-    />
-  );
 }
 
 export default async function AdminTalentsPage({
@@ -216,7 +111,7 @@ export default async function AdminTalentsPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const { talents, error } = await getTalentPool();
+  const { users, error } = await getTalentUsers();
   const queryError =
     typeof params?.error === "string" ? decodeURIComponent(params.error) : null;
 
@@ -225,18 +120,18 @@ export default async function AdminTalentsPage({
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
-            Talent Pool
+            Talent Profiles
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-normal text-slate-950">
             人才庫管理
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            管理首頁人才推薦卡片的頭銜、時區、可用工時、技能與上下架狀態。
+            直接管理系統真實註冊用戶資料，並切換首頁精選人才狀態。
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100">
           <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
-          Homepage
+          Profiles
         </span>
       </section>
 
@@ -247,158 +142,119 @@ export default async function AdminTalentsPage({
         </div>
       ) : null}
 
-      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-        <div className="mb-5 flex items-center gap-2">
-          <Plus className="h-4 w-4 text-cyan-700" aria-hidden="true" />
-          <h2 className="font-semibold text-slate-900">新增人才</h2>
-        </div>
-        <form action={createTalentPoolItem} className="grid gap-4 lg:grid-cols-8">
-          <TextInput name="full_name" placeholder="Ivy Chen" required />
-          <TextInput name="job_title" placeholder="Product Designer" required />
-          <TextInput name="timezone" placeholder="GMT+8" required />
-          <TextInput name="available_hours" placeholder="每週 20 小時" required />
-          <div className="lg:col-span-2">
-            <TextInput name="skills" placeholder="SaaS UX, Design System" />
-          </div>
-          <TextInput name="avatar_url" placeholder="Avatar URL" />
-          <TextInput name="sort_order" defaultValue={0} />
-          <div className="flex items-end gap-4 lg:col-span-8">
-            <label className="flex items-center gap-2 pb-2 text-sm font-medium text-slate-700">
-              <input
-                name="is_active"
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-              />
-              上架
-            </label>
-            <button
-              type="submit"
-              className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-800"
-            >
-              新增
-            </button>
-          </div>
-        </form>
-      </section>
-
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-          <h2 className="font-semibold text-slate-900">所有人才</h2>
+        <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h2 className="font-semibold text-slate-900">所有人才</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              共 {users.length} 位註冊用戶，資料來源為 profiles。
+            </p>
+          </div>
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
+            <Star className="h-3.5 w-3.5" aria-hidden="true" />
+            首頁精選
+          </span>
         </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-6 py-4">姓名 / 頭銜</th>
+                <th className="px-6 py-4">姓名</th>
+                <th className="px-6 py-4">職稱</th>
                 <th className="px-6 py-4">時區</th>
-                <th className="px-6 py-4">可用工時</th>
                 <th className="px-6 py-4">技能</th>
-                <th className="px-6 py-4">Avatar URL</th>
-                <th className="px-6 py-4">排序</th>
-                <th className="px-6 py-4">狀態</th>
-                <th className="px-6 py-4 text-right">操作</th>
+                <th className="px-6 py-4 text-right">首頁精選</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {talents.map((talent) => (
-                <tr key={talent.id} className="align-top transition hover:bg-slate-50/70">
-                  <td className="px-6 py-5">
-                    <form id={`talent-${talent.id}`} action={updateTalentPoolItem} className="grid gap-2">
-                      <input type="hidden" name="id" value={talent.id} />
-                      <TextInput name="full_name" defaultValue={talent.full_name} required />
-                      <TextInput name="job_title" defaultValue={talent.job_title} required />
-                    </form>
-                  </td>
-                  <td className="px-6 py-5">
-                    <TextInput
-                      form={`talent-${talent.id}`}
-                      name="timezone"
-                      defaultValue={talent.timezone}
-                      required
-                    />
-                  </td>
-                  <td className="px-6 py-5">
-                    <TextInput
-                      form={`talent-${talent.id}`}
-                      name="available_hours"
-                      defaultValue={talent.available_hours}
-                      required
-                    />
-                  </td>
-                  <td className="px-6 py-5">
-                    <TextInput
-                      form={`talent-${talent.id}`}
-                      name="skills"
-                      defaultValue={formatSkills(talent.skills)}
-                    />
-                  </td>
-                  <td className="px-6 py-5">
-                    <TextInput
-                      form={`talent-${talent.id}`}
-                      name="avatar_url"
-                      defaultValue={talent.avatar_url ?? ""}
-                    />
-                  </td>
-                  <td className="px-6 py-5">
-                    <TextInput
-                      form={`talent-${talent.id}`}
-                      name="sort_order"
-                      defaultValue={talent.sort_order}
-                    />
-                  </td>
-                  <td className="px-6 py-5">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
-                        talent.is_active
-                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                          : "bg-slate-100 text-slate-600 ring-slate-200"
-                      }`}
-                    >
-                      {talent.is_active ? "上架" : "下架"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        form={`talent-${talent.id}`}
-                        type="submit"
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
-                      >
-                        儲存
-                      </button>
-                      <form action={toggleTalentPoolActive}>
-                        <input type="hidden" name="id" value={talent.id} />
+              {users.map((user) => {
+                const skills = getSkills(user.skills);
+                const isFeatured = Boolean(user.is_featured_talent);
+
+                return (
+                  <tr key={user.id} className="align-top transition hover:bg-slate-50/70">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        {user.avatar_url ? (
+                          <span
+                            className="h-10 w-10 shrink-0 rounded-full bg-cover bg-center ring-1 ring-slate-200"
+                            style={{ backgroundImage: `url(${user.avatar_url})` }}
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+                            {getDisplayName(user).slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {getDisplayName(user)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {user.id}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 text-slate-700">
+                      {getJobTitle(user)}
+                    </td>
+                    <td className="px-6 py-5 text-slate-600">
+                      {user.timezone || "尚未填寫"}
+                    </td>
+                    <td className="px-6 py-5">
+                      {skills.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {skills.map((skill) => (
+                            <span
+                              key={skill}
+                              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">尚未填寫</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-5">
+                      <form action={toggleFeaturedTalent} className="flex justify-end">
+                        <input type="hidden" name="id" value={user.id} />
                         <input
                           type="hidden"
-                          name="next_active"
-                          value={String(!talent.is_active)}
+                          name="next_featured"
+                          value={String(!isFeatured)}
                         />
                         <button
                           type="submit"
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${
+                            isFeatured
+                              ? "bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100"
+                              : "bg-slate-100 text-slate-600 ring-slate-200 hover:bg-cyan-50 hover:text-cyan-700 hover:ring-cyan-200"
+                          }`}
                         >
-                          {talent.is_active ? "下架" : "上架"}
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${
+                              isFeatured ? "bg-amber-500" : "bg-slate-300"
+                            }`}
+                            aria-hidden="true"
+                          />
+                          {isFeatured ? "已設為精選" : "設為首頁精選"}
                         </button>
                       </form>
-                      <form action={deleteTalentPoolItem}>
-                        <input type="hidden" name="id" value={talent.id} />
-                        <button
-                          type="submit"
-                          className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
-                        >
-                          刪除
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {talents.length === 0 ? (
+
+        {users.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-slate-500">
-            目前沒有精選人才。
+            目前沒有註冊用戶。
           </div>
         ) : null}
       </section>

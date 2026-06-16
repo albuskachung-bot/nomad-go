@@ -12,7 +12,6 @@ import {
   Home,
   LayoutDashboard,
   Mail,
-  Map,
   Megaphone,
   PenLine,
   Settings,
@@ -70,12 +69,6 @@ const menuGroups = [
         label: "全站動態版位",
         helper: "Placements",
         icon: Megaphone
-      },
-      {
-        href: "/admin/city-guides",
-        label: "城市指南管理",
-        helper: "City Guides",
-        icon: Map
       },
       {
         href: "/admin/talents",

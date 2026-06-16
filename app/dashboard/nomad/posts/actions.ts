@@ -29,6 +29,18 @@ function readTags(value: FormDataEntryValue | null) {
     .slice(0, 12);
 }
 
+function readCategory(value: FormDataEntryValue | null) {
+  const category = readText(value);
+  const allowedCategories = new Set([
+    "general",
+    "city_guide",
+    "career",
+    "nomad_life"
+  ]);
+
+  return allowedCategories.has(category) ? category : "general";
+}
+
 function createPostSlug(title: string) {
   const normalized = title
     .normalize("NFKD")
@@ -102,6 +114,7 @@ export async function saveNomadPost(formData: FormData): Promise<PostActionResul
     const title = readText(formData.get("title"));
     const requestedSlug = readOptionalText(formData.get("slug"));
     const content = readText(formData.get("content"));
+    const category = readCategory(formData.get("category"));
     const coverImageUrl = readOptionalText(formData.get("cover_image_url"));
     const tags = readTags(formData.get("tags"));
     const isPublished = formData.get("is_published") === "true";
@@ -126,6 +139,7 @@ export async function saveNomadPost(formData: FormData): Promise<PostActionResul
     const payload: Database["public"]["Tables"]["posts"]["Update"] = {
       title,
       slug,
+      category,
       content,
       tags,
       cover_image_url: coverImageUrl,
@@ -156,6 +170,7 @@ export async function saveNomadPost(formData: FormData): Promise<PostActionResul
         author_id: user.id,
         title,
         slug,
+        category,
         content,
         tags,
         cover_image_url: coverImageUrl,

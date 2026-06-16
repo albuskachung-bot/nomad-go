@@ -7,7 +7,7 @@ create table if not exists public.profiles (
     check (role in ('member', 'super_admin', 'editor', 'reviewer')),
   account_type text
     constraint profiles_account_type_check
-    check (account_type in ('employer', 'nomad')),
+    check (account_type in ('employer', 'nomad', 'talent')),
   full_name text,
   title text,
   avatar_url text,
@@ -221,7 +221,7 @@ create table if not exists public.notifications (
 alter table public.profiles add column if not exists account_type text;
 alter table public.profiles drop constraint if exists profiles_account_type_check;
 alter table public.profiles add constraint profiles_account_type_check
-  check (account_type in ('employer', 'nomad'));
+  check (account_type in ('employer', 'nomad', 'talent'));
 
 alter table public.profiles add column if not exists role text;
 alter table public.profiles drop constraint if exists profiles_role_check;
@@ -1182,6 +1182,7 @@ with (security_barrier = true)
 as
 select
   id,
+  account_type,
   full_name,
   title,
   coalesce(job_title, title) as job_title,
@@ -1191,9 +1192,11 @@ select
   timezone,
   work_type,
   coalesce(sponsored_until > now(), false) as is_featured,
-  updated_at
+  updated_at,
+  status,
+  is_public
 from public.profiles
-where account_type = 'nomad'
+where account_type in ('talent', 'nomad')
   and status = 'published'
   and is_public = true
   and coalesce(is_banned, false) = false;

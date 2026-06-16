@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   Briefcase,
   LayoutDashboard,
-  Map,
   Settings,
   Shield,
   Sparkles,
@@ -32,11 +31,6 @@ const navItems = [
     href: "/admin/talent",
     label: "人才庫管理",
     icon: Users
-  },
-  {
-    href: "/admin/guides",
-    label: "城市指南管理",
-    icon: Map
   },
   {
     href: "/admin/curation",

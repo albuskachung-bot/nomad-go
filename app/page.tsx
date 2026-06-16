@@ -3,18 +3,19 @@ import type { Metadata } from "next";
 import {
   ArrowRight,
   Briefcase,
+  CalendarDays,
   Clock3,
   Globe2,
   MapPin,
+  PenLine,
   Signal,
   Sparkles,
-  Star,
   Users,
   Wifi
 } from "lucide-react";
 import { getSiteSettings } from "@/lib/data";
 import { createSupabasePublicServerClient } from "@/lib/supabase/server";
-import type { CityGuide, Job, PlatformPlacement, TalentPool } from "@/lib/types";
+import type { Job, PlatformPlacement, Post, PublicTalent } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ async function getAnnouncementPlacement() {
   return data as PlatformPlacement | null;
 }
 
-async function getHomeCityGuides() {
+async function getHomeColumnPosts() {
   const supabase = createSupabasePublicServerClient();
 
   if (!supabase) {
@@ -63,10 +64,10 @@ async function getHomeCityGuides() {
   }
 
   const { data, error } = await supabase
-    .from("city_guides")
+    .from("posts")
     .select("*")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
+    .eq("is_published", true)
+    .order("updated_at", { ascending: false })
     .limit(3);
 
   if (error) {
@@ -74,11 +75,11 @@ async function getHomeCityGuides() {
       return [];
     }
 
-    console.error("[home] Unable to load city guides.", error);
+    console.error("[home] Unable to load column posts.", error);
     return [];
   }
 
-  return (data ?? []) as CityGuide[];
+  return (data ?? []) as Post[];
 }
 
 async function getHomeTalentPool() {
@@ -89,10 +90,13 @@ async function getHomeTalentPool() {
   }
 
   const { data, error } = await supabase
-    .from("talent_pool")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
+    .from("public_talents")
+    .select(
+      "id, full_name, title, job_title, avatar_url, skills, location, timezone, work_type, is_featured, is_featured_talent, featured_sort_order, updated_at"
+    )
+    .eq("is_featured", true)
+    .order("featured_sort_order", { ascending: true })
+    .order("updated_at", { ascending: false })
     .limit(3);
 
   if (error) {
@@ -100,11 +104,11 @@ async function getHomeTalentPool() {
       return [];
     }
 
-    console.error("[home] Unable to load talent pool.", error);
+    console.error("[home] Unable to load featured talent profiles.", error);
     return [];
   }
 
-  return (data ?? []) as TalentPool[];
+  return (data ?? []) as PublicTalent[];
 }
 
 async function getHomeFeaturedJobs() {
@@ -133,13 +137,42 @@ async function getHomeFeaturedJobs() {
   return (data ?? []) as Job[];
 }
 
-function getInitials(name: string) {
+function getInitials(name: string | null) {
+  if (!name) {
+    return "NG";
+  }
+
   return name
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function formatPostDate(value: string) {
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "日期待確認";
+  }
+
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(parsedDate);
+}
+
+function getCategoryLabel(category: string | null | undefined) {
+  const labels: Record<string, string> = {
+    city_guide: "城市指南",
+    career: "職涯發展",
+    nomad_life: "遊牧生活",
+    general: "一般專欄"
+  };
+
+  return labels[category ?? "general"] ?? "一般專欄";
 }
 
 function AnnouncementBar({ placement }: { placement: PlatformPlacement | null }) {
@@ -176,14 +209,14 @@ function AnnouncementBar({ placement }: { placement: PlatformPlacement | null })
 }
 
 export default async function HomePage() {
-  const [featuredJobs, siteSettings, announcementPlacement, cityGuides, talentPool] =
+  const [featuredJobs, siteSettings, announcementPlacement, columnPosts, talentPool] =
     await Promise.all([
-    getHomeFeaturedJobs(),
-    getSiteSettings(),
-    getAnnouncementPlacement(),
-    getHomeCityGuides(),
-    getHomeTalentPool()
-  ]);
+      getHomeFeaturedJobs(),
+      getSiteSettings(),
+      getAnnouncementPlacement(),
+      getHomeColumnPosts(),
+      getHomeTalentPool()
+    ]);
 
   return (
     <>
@@ -325,61 +358,86 @@ export default async function HomePage() {
 
       <section className="bg-gray-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-              City Guides
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-normal text-gray-900">
-              城市指南卡片
-            </h2>
-            <p className="mt-3 text-base leading-7 text-gray-500">
-              用預算、網路速度、時區與生活機能快速比較下一個落腳地。
-            </p>
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+                Nomad Column
+              </p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-normal text-gray-900">
+                遊牧專欄
+              </h2>
+              <p className="mt-3 text-base leading-7 text-gray-500">
+                城市指南、職涯發展與遊牧生活觀察，統一收錄於官方專欄。
+              </p>
+            </div>
+            <Link
+              href="/blog"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+            >
+              查看全部
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {cityGuides.map((guide) => (
-              <article
-                key={guide.id}
-                className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div
-                  className="h-44 bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(${guide.image_url})`
-                  }}
-                  aria-hidden="true"
-                />
-                <div className="p-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        {guide.city_name}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {guide.country} · {guide.timezone}
-                      </p>
+          {columnPosts.length > 0 ? (
+            <div className="mt-10 grid gap-5 md:grid-cols-3">
+              {columnPosts.map((post) => (
+                <article
+                  key={post.id}
+                  className="flex min-h-[390px] flex-col overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
+                >
+                  {post.cover_image_url ? (
+                    <div
+                      className="h-44 bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url(${post.cover_image_url})`
+                      }}
+                      aria-label={`${post.title} 封面圖`}
+                    />
+                  ) : (
+                    <div className="flex h-44 items-center justify-center bg-blue-50 text-blue-600">
+                      <PenLine className="h-8 w-8" aria-hidden="true" />
                     </div>
-                    <Star className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                  )}
+                  <div className="flex flex-1 flex-col p-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
+                        {getCategoryLabel(post.category)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatPostDate(post.updated_at)}
+                      </span>
+                    </div>
+                    <h3 className="mt-4 line-clamp-2 text-xl font-semibold text-gray-900">
+                      {post.title}
+                    </h3>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {post.tags.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <Link
+                      href={`/blog/${post.slug}`}
+                      className="mt-auto inline-flex items-center gap-2 pt-6 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      閱讀文章
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
                   </div>
-                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg bg-gray-50 p-3">
-                      <div className="text-gray-500">月預算</div>
-                      <div className="mt-1 font-semibold text-gray-900">
-                        {guide.budget_est}
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-3">
-                      <div className="text-gray-500">網速</div>
-                      <div className="mt-1 font-semibold text-gray-900">
-                        {guide.internet_speed}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 rounded-lg border border-dashed border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-500">
+              目前尚無公開專欄
+            </div>
+          )}
         </div>
       </section>
 
@@ -394,7 +452,7 @@ export default async function HomePage() {
                 人才推薦
               </h2>
               <p className="mt-4 text-base leading-7 text-gray-500">
-                精選可遠端協作的華語人才，依時區、可用工時與技能快速比較。
+                精選可遠端協作的華語人才，依時區、職能與技能快速比較。
               </p>
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-gray-500">
                 <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-2">
@@ -433,15 +491,15 @@ export default async function HomePage() {
                       )}
                       <div>
                         <h3 className="font-semibold text-gray-900">
-                          {talent.full_name}
+                          {talent.full_name || "未命名人才"}
                         </h3>
                         <p className="mt-1 text-sm text-gray-500">
-                          {talent.job_title}
+                          {talent.job_title || talent.title || "遠端工作人才"}
                         </p>
                       </div>
                     </div>
                     <div className="text-sm text-gray-500">
-                      {talent.timezone} · {talent.available_hours}
+                      {talent.timezone || "Flexible"} · 開放合作
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">

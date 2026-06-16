@@ -107,7 +107,7 @@ export type ProfileRole =
   | "editor"
   | "reviewer";
 
-export type AccountType = "employer" | "nomad";
+export type AccountType = "employer" | "nomad" | "talent";
 export type CompanyApprovalStatus = "pending" | "approved" | "rejected";
 export type CompanySubscriptionPlan = "free" | "pro" | "boost";
 export type TalentSubscriptionPlan = "free" | "pro" | "vip";
@@ -190,6 +190,8 @@ export type Profile = {
   location: string | null;
   status: ContentStatus;
   is_featured: boolean;
+  is_featured_talent?: boolean | null;
+  featured_sort_order?: number | null;
   is_banned: boolean;
   timezone: string | null;
   languages: string[];
@@ -217,6 +219,7 @@ export type Profile = {
 
 export type PublicTalent = {
   id: string;
+  account_type?: AccountType | null;
   full_name: string | null;
   title: string | null;
   job_title: string | null;
@@ -226,6 +229,10 @@ export type PublicTalent = {
   timezone: string | null;
   work_type: string[];
   is_featured: boolean;
+  is_featured_talent?: boolean | null;
+  featured_sort_order?: number | null;
+  status?: ContentStatus;
+  is_public?: boolean;
   updated_at: string;
 };
 
@@ -323,6 +330,7 @@ export type Post = {
   author_id: string;
   title: string;
   slug: string;
+  category: string;
   content: string;
   tags: string[];
   cover_image_url: string | null;

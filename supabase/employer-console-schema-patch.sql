@@ -61,7 +61,7 @@ alter table public.profiles add constraint profiles_role_check
 
 alter table public.profiles drop constraint if exists profiles_account_type_check;
 alter table public.profiles add constraint profiles_account_type_check
-  check (account_type in ('employer', 'nomad'));
+  check (account_type in ('employer', 'nomad', 'talent'));
 
 alter table public.profiles drop constraint if exists profiles_status_check;
 alter table public.profiles add constraint profiles_status_check

@@ -10,6 +10,7 @@ create table if not exists public.posts (
   author_id uuid not null references public.profiles(id) on delete cascade,
   title text not null,
   slug text not null unique,
+  category text not null default 'general',
   content text not null,
   tags text[] not null default '{}',
   cover_image_url text,
@@ -21,8 +22,14 @@ create table if not exists public.posts (
   constraint posts_content_not_empty check (length(trim(content)) > 0)
 );
 
+alter table public.posts
+  add column if not exists category text not null default 'general';
+
 create index if not exists posts_published_updated_at_idx
   on public.posts (is_published, updated_at desc);
+
+create index if not exists posts_category_published_updated_at_idx
+  on public.posts (category, is_published, updated_at desc);
 
 create index if not exists posts_author_updated_at_idx
   on public.posts (author_id, updated_at desc);

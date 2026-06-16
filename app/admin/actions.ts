@@ -297,7 +297,6 @@ export async function updateAdminContentItem(formData: FormData) {
   if (table === "jobs") {
     revalidatePath(`/admin/jobs/${id}`);
   }
-  revalidatePath("/admin/guides");
   revalidatePath("/admin/talent");
   revalidatePath("/");
 

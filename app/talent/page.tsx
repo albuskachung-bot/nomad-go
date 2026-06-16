@@ -20,6 +20,7 @@ const checklist = [
 ];
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function isVipProfile(profile: PublicTalent) {
   return profile.is_featured;
@@ -43,7 +44,7 @@ function getDisplayName(profile: PublicTalent) {
 }
 
 function getJobTitle(profile: PublicTalent) {
-  return profile.job_title?.trim() || profile.title?.trim() || "遠端工作人才";
+  return profile.job_title?.trim() || profile.title?.trim() || "未設定職稱";
 }
 
 function getSummary(profile: PublicTalent) {
@@ -74,7 +75,12 @@ async function getPublicTalentProfiles() {
 
   const { data, error } = await supabase
     .from("public_talents")
-    .select("id, full_name, title, job_title, avatar_url, skills, location, timezone, work_type, is_featured, updated_at")
+    .select(
+      "id, full_name, title, job_title, avatar_url, skills, location, timezone, work_type, is_featured, is_featured_talent, featured_sort_order, account_type, status, is_public, updated_at"
+    )
+    .eq("is_public", true)
+    .eq("status", "published")
+    .in("account_type", ["talent", "nomad"])
     .order("updated_at", { ascending: false });
 
   if (error) {
