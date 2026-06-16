@@ -52,6 +52,7 @@ export type Notification = {
   message: string;
   content: string;
   link_url: string | null;
+  action_url: string | null;
   metadata: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -683,6 +684,7 @@ export type Database = {
           | "message"
           | "content"
           | "link_url"
+          | "action_url"
           | "metadata"
         > & {
           id?: string;
@@ -690,6 +692,7 @@ export type Database = {
           message?: string;
           content?: string;
           link_url?: string | null;
+          action_url?: string | null;
           metadata?: Record<string, unknown>;
           is_read?: boolean;
           created_at?: string;

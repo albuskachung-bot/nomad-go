@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import {
   getUnreadNotifications,
+  markNotificationAsRead,
   type UnreadNotification
 } from "@/app/actions/notifications";
 
@@ -21,6 +22,25 @@ function formatNotificationTime(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
+}
+
+function getNotificationHref(notification: UnreadNotification) {
+  return notification.action_url || notification.link_url;
+}
+
+function renderNotificationContent(notification: UnreadNotification) {
+  if (notification.type === "profile_view" && notification.content.includes(" 查看了")) {
+    const [companyName, ...rest] = notification.content.split(" 查看了");
+
+    return (
+      <>
+        <span className="font-semibold text-blue-600">{companyName}</span>
+        {` 查看了${rest.join(" 查看了")}`}
+      </>
+    );
+  }
+
+  return notification.content;
 }
 
 export default function NotificationDropdown() {
@@ -92,6 +112,20 @@ export default function NotificationDropdown() {
     };
   }, [isOpen]);
 
+  function handleNotificationClick(notificationId: string) {
+    setNotifications((current) =>
+      current.filter((notification) => notification.id !== notificationId)
+    );
+    setUnreadCount((current) => Math.max(0, current - 1));
+    setIsOpen(false);
+
+    void markNotificationAsRead(notificationId).then((result) => {
+      if (!result.ok && result.error) {
+        console.error("[notifications] Failed to mark notification as read.", result.error);
+      }
+    });
+  }
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -120,16 +154,39 @@ export default function NotificationDropdown() {
             {isLoading ? (
               <div className="px-4 py-6 text-sm text-gray-500">載入通知中...</div>
             ) : notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <div key={notification.id} className="px-4 py-3">
-                  <p className="text-sm font-medium leading-5 text-gray-900">
-                    {notification.content}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    {formatNotificationTime(notification.created_at)}
-                  </p>
-                </div>
-              ))
+              notifications.map((notification) => {
+                const href = getNotificationHref(notification);
+                const itemContent = (
+                  <>
+                    <p className="text-sm font-medium leading-5 text-gray-900">
+                      {renderNotificationContent(notification)}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      {formatNotificationTime(notification.created_at)}
+                    </p>
+                  </>
+                );
+
+                return href ? (
+                  <Link
+                    key={notification.id}
+                    href={href}
+                    onClick={() => handleNotificationClick(notification.id)}
+                    className="block px-4 py-3 transition hover:bg-blue-50"
+                  >
+                    {itemContent}
+                  </Link>
+                ) : (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => handleNotificationClick(notification.id)}
+                    className="block w-full px-4 py-3 text-left transition hover:bg-gray-50"
+                  >
+                    {itemContent}
+                  </button>
+                );
+              })
             ) : (
               <div className="px-4 py-6 text-sm text-gray-500">
                 目前沒有新通知

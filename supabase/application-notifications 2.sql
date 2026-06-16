@@ -7,6 +7,7 @@ create table if not exists public.notifications (
   title text not null,
   message text not null,
   link_url text,
+  action_url text,
   metadata jsonb not null default '{}'::jsonb,
   is_read boolean not null default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null

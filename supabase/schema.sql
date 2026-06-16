@@ -213,6 +213,7 @@ create table if not exists public.notifications (
   title text not null,
   message text not null,
   link_url text,
+  action_url text,
   metadata jsonb not null default '{}'::jsonb,
   is_read boolean not null default false,
   created_at timestamptz not null default now()
@@ -428,6 +429,7 @@ alter table public.notifications add column if not exists type text not null def
 alter table public.notifications add column if not exists title text;
 alter table public.notifications add column if not exists message text;
 alter table public.notifications add column if not exists link_url text;
+alter table public.notifications add column if not exists action_url text;
 alter table public.notifications add column if not exists metadata jsonb not null default '{}'::jsonb;
 alter table public.notifications add column if not exists is_read boolean not null default false;
 alter table public.notifications add column if not exists created_at timestamptz not null default now();

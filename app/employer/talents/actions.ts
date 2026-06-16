@@ -82,6 +82,7 @@ export async function triggerProfileView(targetUserId: string): Promise<TriggerP
   }
 
   const notificationContent = `${company.name || "企業雇主"} 查看了你的完整履歷`;
+  const companyActionUrl = `/companies/${company.id}`;
   const notificationClient = createSupabaseAdminClient() ?? supabase;
   const { error: notificationError } = await notificationClient
     .from("notifications")
@@ -91,7 +92,8 @@ export async function triggerProfileView(targetUserId: string): Promise<TriggerP
       title: "你的履歷被企業查看",
       message: notificationContent,
       content: notificationContent,
-      link_url: "/dashboard/nomad",
+      link_url: companyActionUrl,
+      action_url: companyActionUrl,
       metadata: {
         company_id: company.id,
         company_name: company.name

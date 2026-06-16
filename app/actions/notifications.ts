@@ -8,6 +8,7 @@ export type UnreadNotification = {
   content: string;
   created_at: string;
   link_url: string | null;
+  action_url: string | null;
 };
 
 export type UnreadNotificationsResult = {
@@ -41,7 +42,7 @@ export async function getUnreadNotifications(): Promise<UnreadNotificationsResul
 
   const { data, count, error } = await supabase
     .from("notifications")
-    .select("id, type, title, message, content, link_url, created_at", {
+    .select("id, type, title, message, content, link_url, action_url, created_at", {
       count: "exact"
     })
     .eq("user_id", user.id)
@@ -66,12 +67,53 @@ export async function getUnreadNotifications(): Promise<UnreadNotificationsResul
       notification.title ||
       "你有一則新通知",
     created_at: notification.created_at,
-    link_url: notification.link_url
+    link_url: notification.link_url,
+    action_url: notification.action_url
   }));
 
   return {
     notifications,
     count: count ?? notifications.length,
+    error: null
+  };
+}
+
+export async function markNotificationAsRead(notificationId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return {
+      ok: false,
+      error: "尚未設定 Supabase 環境變數。"
+    };
+  }
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: "請先登入後再操作通知。"
+    };
+  }
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", notificationId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+
+  return {
+    ok: true,
     error: null
   };
 }

@@ -9,6 +9,7 @@ create table if not exists public.notifications (
   message text not null default '',
   content text not null default '',
   link_url text,
+  action_url text,
   metadata jsonb not null default '{}'::jsonb,
   is_read boolean not null default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -20,6 +21,7 @@ alter table public.notifications
   add column if not exists message text not null default '',
   add column if not exists content text not null default '',
   add column if not exists link_url text,
+  add column if not exists action_url text,
   add column if not exists metadata jsonb not null default '{}'::jsonb,
   add column if not exists is_read boolean not null default false,
   add column if not exists created_at timestamp with time zone default timezone('utc'::text, now()) not null;
