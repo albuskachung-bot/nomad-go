@@ -1,4 +1,4 @@
-# NOMAD-GO 系統架構與會員權限權威指南 (System Architecture & Permission Guide)
+# NOMAD-GO 系統架構與會員權限權威指南
 
 本文件為 NOMAD-GO 雙邊平台（Next.js + Supabase）的全系統架構與會員權限權威指南。作為團隊開發與交接的 Single Source of Truth，詳述了系統的路由設計、雙邊資料流、資料庫結構、權限矩陣以及後續商轉推進藍圖。
 
@@ -35,32 +35,32 @@ NOMAD-GO 的核心價值在於活絡的「雙邊媒合數據飛輪」，其真�
 
 ### `public.profiles` (會員主檔)
 存放所有註冊使用者的核心身份與權限資訊。
-*   `id`: UUID, Primary Key, 對應 Supabase Auth UID。
-*   `role`: 系統角色 (例如: `super_admin`, `member`)。
-*   `account_type`: 帳號類型，區分雙邊市場 (`nomad`, `talent`, `employer` 等)。
-*   `status`: 帳號狀態 (例如: `published` 已發布, `pending` 審核中/未公開)。
-*   `subscription_plan`: 當前訂閱方案 (例如: `free`, `vip`, `pro`)。
-*   `plan_expires_at`: 方案到期時間 (Timestampz)。
-*   `direct_connect_tokens`: 主動敲門/聯繫的可用額度 (Integer)。
-*   `is_public`: 是否允許在前台目錄公開展示 (Boolean)。
+*   **`id`**: UUID, Primary Key, 對應 Supabase Auth UID。
+*   **`role`**: 系統角色 (例如: `super_admin`, `member`)。
+*   **`account_type`**: 帳號類型，區分雙邊市場 (`nomad`, `talent`, `employer` 等)。
+*   **`status`**: 帳號狀態 (例如: `published` 已發布, `pending` 審核中/未公開)。
+*   **`subscription_plan`**: 當前訂閱方案 (例如: `free`, `vip`, `pro`)。
+*   **`plan_expires_at`**: 方案到期時間 (Timestampz)。
+*   **`direct_connect_tokens`**: 主動敲門/聯繫的可用額度 (Integer)。
+*   **`is_public`**: 是否允許在前台目錄公開展示 (Boolean)。
 
 ### `public.companies` (企業檔案)
 儲存企業雇主的詳細資訊與 B2B 訂閱狀態。
-*   `employer_id`: UUID, 關聯至 `public.profiles.id`。
-*   `name`: 企業名稱。
-*   `approval_status`: 企業審核狀態 (例如: `approved`, `pending_review`)。
-*   `subscription_plan`: 企業方案層級 (例如: `free`, `pro`)。
-*   `plan_expires_at`: 企業方案到期時間。
-*   `max_active_jobs`: 同時可上架的活躍職缺數量上限。
-*   `free_unlock_limit`: 免費方案可解鎖查看人才履歷的次數上限。
+*   **`employer_id`**: UUID, 關聯至 `public.profiles.id`。
+*   **`name`**: 企業名稱。
+*   **`approval_status`**: 企業審核狀態 (例如: `approved`, `pending_review`)。
+*   **`subscription_plan`**: 企業方案層級 (例如: `free`, `pro`)。
+*   **`plan_expires_at`**: 企業方案到期時間。
+*   **`max_active_jobs`**: 同時可上架的活躍職缺數量上限。
+*   **`free_unlock_limit`**: 免費方案可解鎖查看人才履歷的次數上限。
 
 ### `public.profile_views` (履歷檢視紀錄)
 紀錄企業查看人才的歷史，支撐人才端的數據分析功能。
-*   核心欄位包含：`viewer_id` (查看者, 企業), `viewed_profile_id` (被查看者, 人才), `created_at` (查看時間)。
+*   **核心欄位**：`viewer_id` (查看者, 企業), `viewed_profile_id` (被查看者, 人才), `created_at` (查看時間)。
 
 ### `public.notifications` (系統通知)
-驅掌握平台互動的核心通知表。
-*   核心欄位包含：`user_id` (接收通知者), `type` (通知類型), `content` (通知內容), `action_url` (點擊跳轉連結), `is_read` (已讀狀態)。
+驅動平台互動的核心通知表。
+*   **核心欄位**：`user_id` (接收通知者), `type` (通知類型), `content` (通知內容), `action_url` (點擊跳轉連結), `is_read` (已讀狀態)。
 
 ---
 
@@ -105,7 +105,7 @@ NOMAD-GO 的核心價值在於活絡的「雙邊媒合數據飛輪」，其真�
     *   **即時數據呈現**：移除 `/talent` 頁面的靜態頁面 Cache，全面改用 `force-dynamic`。確保新發布或更新狀態的人才卡片能即時呈現，避免因舊 Cache 導致空資料而進入 catch 區塊顯示錯誤。
 2.  **AI 履歷健檢實體化**
     *   **拔除空殼**：移除目前僅顯示「已啟動」狀態的空殼 UI。
-    *   **串接真實 AI**：將後端 Server Action 實際串接 LLM API。
+    *   **串接真實 AI**：將後端 Server Action 實際串接 LLM API (如 OpenAI 或 Gemini)。
     *   **前端體驗優化**：實作呼叫過程中的前端分析中狀態 (Loading Spinner)，並將生成的分析結果以 Markdown 格式優雅地呈現在彈出視窗 (Modal) 中。
 3.  **企業公開專頁開發**
     *   **完善跳轉終點**：因通知 (`notifications`) 與瀏覽紀錄 (`profile_views`) 皆已綁定 `action_url` 至 `/companies/[id]`，必須優先刻出**求職者視角**的企業品牌專頁 UI。
